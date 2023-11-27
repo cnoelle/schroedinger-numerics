@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Schroedinger numerics</title>
+    <link rel="stylesheet" href="assets/style.css">
+</head>
+<body>
+    <h1>Wave function visualization</h1>
+
+    <div id="menu" class="main-menu">
+        <div id="menuClose" class="menu-close">
+            <img src="assets/icons/west_black_24dp.svg" class="control-icon" title="Close menu">
+        </div>
+        <h3>Upload results</h3>
+        <div class="upload-dataset">
+            <div>Dataset</div>
+            <div><input type="text" value="default" id="uploadDataset" placeholder="Dataset name" title="Provide a name for the new dataset"></div>
+        </div>        
+        <div id="uploadControl" class="upload-control">
+            <input type="file" multiple="multiple" accept=".csv,.json" id="fileSelector" title="Select result files for display">
+            <input type="button" value="Upload" id="fileUpload" disabled="disabled" title="Select files first">
+        </div>
+        <h3>Datasets</h3>
+        <div id="datasetsGrid" class="datasets-grid">
+        </div>
+    </div>
+    <div id="viz" class="menu-margin">
+        <div id="menuShow" class="menu-open" hidden="hidden">
+            <img src="assets/icons/east_black_24dp.svg" class="control-icon" title="Open menu">
+        </div>
+        <div class="controls">
+            <div id="simPlay">
+                <img src="assets/icons/play_arrow_black_24dp.svg" class="control-icon" title="Play">
+            </div>
+            <div id="simStop">
+                <img src="assets/icons/stop_black_24dp.svg" class="control-icon control-icon-disabled" title="Stop">
+            </div>
+            <div id="simProgress">
+                <progress min="0" max="100" value="0" class="control-icon control-icon-disabled"> 0% </progress>
+            </div>
+            <div class="aligned-row left-margin">
+                <div>Seconds: </div>
+                <input type="number" min="1" step="1" value="10" id="simDuration" class="sim-duration-control"
+                    placeholder="Simulation duration" 
+                    title="Seconds the complete simulation takes to run">
+            </div>
+        </div>
+        <div id="waveFunction"></div>
+        <br>
+        <div id="waveFunctionTilde"></div>
+        <br>
+        <div class="phase-space-plots">
+            <div id="observables" data-plot="phase-space"></div>
+            <div id="energy" data-plot="phase-space"></div>
+        </div>
+        <br>
+        <div id="waveFunctionDifferences"></div>
+    </div>
+    <br><br>
+    <div class="overlay" id="uploadProgress" hidden="hidden">
+        <div>
+            <div>Loading...</div>
+            <progress max="100" value="0">0</progress>
+        </div>
+    </div>
+    <!--<script src="bundle.js"></script>--><!--will be auto inserted-->
+</body>
+</html>

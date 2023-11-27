@@ -1,0 +1,9 @@
+{
+    "type": "classical",
+    "scheme": {"id": "SymplecticEuler" , "mass": 1, "deltaX": 0.001},
+    "V_coefficients": [0,0,1],
+    "mass": 1.0,
+    "deltaT": 0.006283185307179587,
+    "t": 0.0,
+    "point": [1.0,0.0]
+}

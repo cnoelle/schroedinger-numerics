@@ -1,0 +1,153 @@
+.main-menu {
+    position: absolute;    
+    border-right: 1px solid black;
+    height: 100%;
+    max-width: 300px;
+    padding-right: 2em;
+}
+
+.menu-margin {
+    margin-left: 350px;
+}
+
+.upload-dataset {
+    display: flex;
+    column-gap: 1em;
+    margin-bottom: 1em;
+}
+
+.datasets-grid {
+    display: flex;
+    flex-direction: column;
+    row-gap: 0.5em;
+}
+
+.dataset-container {
+    padding-left: 0.2em;
+
+}
+
+.controls {
+    display: flex;
+    column-gap: 0.5em;
+    /*margin-bottom: 1em;*/
+}
+
+.aligned-row {
+    display: flex;
+    column-gap: 0.5em;
+    align-items: baseline;
+    flex-wrap: nowrap;
+}
+
+.left-margin {
+    margin-left: 1em;
+}
+
+.menu-close {
+    position: absolute;
+    top: 0px;
+    right: 2.5em;
+    opacity: 0.6;
+}
+
+.menu-open {
+    opacity: 0.6;
+}
+
+.control-icon {
+    cursor: pointer;
+}
+
+.control-icon-disabled {
+    opacity: 0.5;
+}
+
+.control-icon-disabled:hover {
+    cursor: auto;
+}
+
+.sim-duration-control {
+    max-width: 8em;
+}
+
+.observables-canvas {
+    width: 600px;
+    height: 600px;
+}
+
+.position-absolute {
+    position: absolute;
+}
+
+.position-relative {
+    position: relative;
+}
+
+/* // TODO delete
+.phase-space-container {
+    display: flex;
+    align-items: flex-end;
+    column-gap: 1em;
+}
+*/
+
+.legend-grid {
+    display: grid;
+    grid-template-columns: auto auto 1fr;
+    align-items: center;
+    column-gap: 1em;
+    
+    /*border: 1px solid black;*/
+}
+
+.phase-space-legend {
+    margin-bottom: 4em;
+}
+
+.current-point {
+    width: 0px;
+    height: 0px;
+    border: red 5px solid;
+    border-radius: 5px;
+}
+
+.phase-space-plots {
+    display: flex;
+    flex-wrap: wrap;
+    column-gap: 1em;
+    align-items: flex-end;
+}
+
+.phase-space-plots>div[data-plot="phase-space"] {
+    min-width: 600px;
+    margin-left: 2em;
+}
+
+.overlay {
+    position: fixed;
+    width: 100%;
+    height: 100%;
+    top: 0;
+    left: 0;
+    z-index: 10;
+    background-color: rgb(0,0,0, 0.2);
+    display: flex;
+    justify-items: center;
+    justify-content: space-around;
+    align-items: center;
+}
+
+/* https://stackoverflow.com/questions/23772673/hidden-property-does-not-work-with-flex-box */
+.overlay[hidden]{
+    display:none;
+}
+
+.overlay>div>div {
+    font-size: 1.8em;
+    margin-bottom: 1em;
+}
+
+.overlay>div>progress {
+    transform: scale(2);
+}
