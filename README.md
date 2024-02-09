@@ -4,6 +4,8 @@ This package can be used to solve the one-dimensional time-dependent *residual S
 
 The quantum solvers use the Crank-Nicolson method for integrating the Schrödinger equation.
 
+[![DOI](https://zenodo.org/badge/724236958.svg)](https://zenodo.org/doi/10.5281/zenodo.10642345)
+
 ## Content
 
 * [Installation](#installation)
