@@ -6,7 +6,7 @@ $$
 	\text i\hbar\partial_t \Phi(t, x) =  \bigg( -\frac{\hbar^2}{2m} \frac{\partial^2}{\partial x^2} + \Big[ V\big(q(t) + x\big) - V(q(t)) - x V'\big(q(t)\big) \Big] \bigg) \Phi(t, x),
 $$
 
-which is equivalent to the usual Schrödinger equation, but particularly well-suited for semi-classical problems. In the equation, $q(t)$ is a classical trajectory, solving Hamilton's equations. 
+which is equivalent to the usual Schrödinger equation, but particularly well-suited for semi-classical problems. In the equation, $q(t)$ is a classical trajectory, solving Hamilton's equations. Paper reference: https://arxiv.org/abs/2402.06847.
 
 The package can also be used to solve the original Schrödinger equation, as well as Hamilton's equations for the trajectory of a classical point particle in one dimension. The quantum solvers use the Crank-Nicolson method for integrating the Schrödinger equation.
 
