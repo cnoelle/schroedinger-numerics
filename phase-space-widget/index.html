@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Phase space demo</title>
+</head>
+<body>
+    <h1>Phase space demo</h1>
+    <phase-space width="480" height="240"></phase-space>
+    <div style="display: flex; column-gap: 1em;">
+        <input type="button" id="run" value="Run" style="cursor: pointer;" title="Start the animation">
+        <input type="button" id="stop" value="Stop" disabled="disabled" style="cursor: pointer;" 
+            title="Stop the animation">
+    </div>
+    <script type="module">
+        import { PhaseSpaceWidget, Density } from "./bundle.js";
+        PhaseSpaceWidget.register();
+
+        const width = 240;
+        const height = 120;
+        const values = new Uint8ClampedArray(width * height);
+        const density = new Density(values, width, 255);
+        const phaseSpace = document.querySelector("phase-space");
+        phaseSpace.values = density;
+
+        const runBtn = document.querySelector("input#run");
+        const stopBtn = document.querySelector("input#stop");
+
+        let stopped = false;
+        
+        function runAnimation() {
+            stopped = false;
+            runBtn.setAttribute("disabled", "disabled");
+            stopBtn.removeAttribute("disabled");
+            let start, previousTimestamp;
+            
+            const center = t => {
+                const delta = 2 * Math.PI * t;
+                return [(2 + Math.sin(delta)) * width / 4,  (2 + Math.cos(delta)) * height / 4];
+            }
+            /**
+             * Here x and y are indices. x runs from 0 to 479 and y from 0 to 239.
+             * center is of type [number, number]
+             */
+            const lengthScaleX = width / 10;
+            const lengthScaleY = height / 10;
+            const distanceSqrFromCenter = (x, y, center) => {
+                const delX = (x - center[0]) / lengthScaleX;
+                const delY = (y - center[1]) / lengthScaleY;
+                return delX * delX + delY * delY;
+            }
+
+            function step(t) {
+                if (start === undefined)
+                    start = t;
+                const secondsElapsed = (t - start)/1000;
+                const cent = center(secondsElapsed);
+                const arr = [0];
+                // FIXME
+                //console.log(" New center at time", secondsElapsed, cent)
+                for (let y=0; y<height; y++) {
+                    const rowStart = y * width;
+                    for (let x=0; x<width; x++) {
+                        const d = Math.max(1, distanceSqrFromCenter(x, y, cent)); 
+                        arr[0] = 255/d; // TODO proper value
+                        values.set(arr, rowStart + x);
+                    }    
+                }
+                phaseSpace.draw();
+                if (!stopped)
+                    window.requestAnimationFrame(step);
+            }
+
+            window.requestAnimationFrame(step);
+        }
+        function stopAnimation() {
+            stopped = true;
+            stopBtn.setAttribute("disabled", "disabled");
+            runBtn.removeAttribute("disabled");
+        }
+        runBtn.addEventListener("click", runAnimation);
+        stopBtn.addEventListener("click", stopAnimation);
+        
+        // allows running those functions from the developer console
+        window.phaseSpace = {
+            runAnimation: runAnimation,
+            stopAnimation: stopAnimation
+        };
+
+    </script>
+</body>
