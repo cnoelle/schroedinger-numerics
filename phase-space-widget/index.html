@@ -7,7 +7,7 @@
 </head>
 <body>
     <h1>Phase space demo</h1>
-    <phase-space width="480" height="240"></phase-space>
+    <phase-space width="530" height="290" boundary="50" grid="true"></phase-space>
     <div style="display: flex; column-gap: 1em;">
         <input type="button" id="run" value="Run" style="cursor: pointer;" title="Start the animation">
         <input type="button" id="stop" value="Stop" disabled="disabled" style="cursor: pointer;" 
@@ -17,11 +17,12 @@
         import { PhaseSpaceWidget, Density } from "./bundle.js";
         PhaseSpaceWidget.register();
 
-        const width = 480;
-        const height = 240;
-        const values = new Uint8ClampedArray(width * height);
-        const density = new Density(values, width, 255);
         const phaseSpace = document.querySelector("phase-space");
+
+        const width = phaseSpace.width - phaseSpace.boundary;
+        const height = phaseSpace.height - phaseSpace.boundary;
+        const values = new Uint8ClampedArray(width * height);
+        const density = new Density(values, width, {maxValue: 255, xRange: [0, 10], pRange: [0, 10]});
         phaseSpace.values = density;
 
         const runBtn = document.querySelector("input#run");
@@ -57,8 +58,6 @@
                 const secondsElapsed = (t - start)/1000;
                 const cent = center(secondsElapsed);
                 const arr = [0];
-                // FIXME
-                //console.log(" New center at time", secondsElapsed, cent)
                 for (let y=0; y<height; y++) {
                     const rowStart = y * width;
                     for (let x=0; x<width; x++) {
@@ -81,6 +80,8 @@
         }
         runBtn.addEventListener("click", runAnimation);
         stopBtn.addEventListener("click", stopAnimation);
+        runAnimation();
+        stopAnimation();
         
         // allows running those functions from the developer console
         window.phaseSpace = {
