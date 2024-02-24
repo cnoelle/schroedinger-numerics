@@ -17,8 +17,8 @@
         import { PhaseSpaceWidget, Density } from "./bundle.js";
         PhaseSpaceWidget.register();
 
-        const width = 240;
-        const height = 120;
+        const width = 480;
+        const height = 240;
         const values = new Uint8ClampedArray(width * height);
         const density = new Density(values, width, 255);
         const phaseSpace = document.querySelector("phase-space");
@@ -43,8 +43,8 @@
              * Here x and y are indices. x runs from 0 to 479 and y from 0 to 239.
              * center is of type [number, number]
              */
-            const lengthScaleX = width / 10;
-            const lengthScaleY = height / 10;
+            const lengthScaleX = width / 20;
+            const lengthScaleY = height / 20;
             const distanceSqrFromCenter = (x, y, center) => {
                 const delX = (x - center[0]) / lengthScaleX;
                 const delY = (y - center[1]) / lengthScaleY;

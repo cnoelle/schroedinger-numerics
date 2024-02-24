@@ -96,10 +96,10 @@ export class PhaseSpaceWidget extends HTMLElement {
         const data: Uint8ClampedArray = imageData.data;
         const color = [...this.#color.rgba];
         const alphaBase = color[3];
-        for (let idxY=0; idxY<density.dimX; idxY++) {
+        for (let idxY=0; idxY<density.dimY; idxY++) {
             const dataRowStartIdx = idxY * density.dimX * 4;
             const valuesRowStartIdx = idxY * density.dimX;
-            for (let idxX=0; idxX<density.dimY; idxX++) {
+            for (let idxX=0; idxX<density.dimX; idxX++) {
                 const value = density.values[valuesRowStartIdx + idxX];
                 const fraction = value / density.maxValue;
                 color[3] = fraction * alphaBase * 255;
