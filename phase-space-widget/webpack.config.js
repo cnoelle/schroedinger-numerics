@@ -4,6 +4,7 @@ import HtmlWebpackPlugin from "html-webpack-plugin";
 export default {
   entry: {
     bundle: "./src/PhaseSpaceWidget.ts",
+    fileImport: "./src/FileImport.ts"
   },
   devtool: "inline-source-map",
   module: {

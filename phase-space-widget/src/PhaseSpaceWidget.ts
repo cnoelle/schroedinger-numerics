@@ -39,6 +39,11 @@ export class PhaseSpaceWidget extends HTMLElement {
     // size of boundary for axis labels and title in case of #grid = true
     #boundary: number = 50;
 
+    // cache
+    #lastImageData: ImageData|undefined;
+    #lastWidth: number|undefined;
+    #lastHeight: number|undefined;
+
     constructor() {
         super();
         // TODO react to size changes of the canvas
@@ -154,8 +159,14 @@ export class PhaseSpaceWidget extends HTMLElement {
             offscreen.height = height;
         const ctx = offscreen.getContext("2d");
         const density: Density = this.#currentValues!;
-        // TODO try to avoid allocating over and over again
-        const imageData: ImageData = ctx.createImageData(width, height);
+        const dimsUnchanged = this.#lastWidth === width && this.#lastHeight === height;
+        // try to avoid allocating over and over again
+        const imageData: ImageData = dimsUnchanged ? this.#lastImageData : ctx.createImageData(width, height);
+        if (!dimsUnchanged) {
+            this.#lastWidth = width;
+            this.#lastHeight = height;
+            this.#lastImageData = imageData;
+        }
         const data: Uint8ClampedArray = imageData.data;
         const color = [...this.#color.rgba];
         const alphaBase = color[3];
@@ -171,13 +182,24 @@ export class PhaseSpaceWidget extends HTMLElement {
         }
         ctx.putImageData(imageData, 0, 0);
         this.clear();
-        if (this.#grid)
-            this._drawGrid(width, height, density.xRange, density.pRange);
+        if (this.#grid) {
+            const xGridLines: number = density.cellsX ? density.cellsX + 1 : 5;
+            const pGridLines: number = density.cellsP ? density.cellsP + 1 : 5;
+            this._drawGrid(width, height, {x: density.xRange, p: density.pRange,
+                xGridLines: xGridLines, pGridLines: pGridLines});
+        }
         canvas.getContext("2d").drawImage(offscreen, offset, 0);
     }
     
-    private _drawGrid(width: number, height: number, x: [number, number]|undefined, p: [number, number]|undefined,
-            xTicks: number = 5, pTicks: number = 5, xGridLines: number = 5, pGridLines: number = 5) {
+    private _drawGrid(width: number, height: number, options?: Partial<{x: [number, number]; p: [number, number];
+                    xTicks: number; pTicks: number; xGridLines: number; pGridLines: number;
+            }>) {
+        const x = options?.x;
+        const p = options?.p;
+        const xGridLines = options?.xGridLines || 5;
+        const pGridLines = options?.pGridLines || 5;
+        const xTicks = options?.xTicks || Math.min(xGridLines, 5);
+        const pTicks = options?.pTicks || Math.min(pGridLines, 5);
         const offsetX = this.#boundary;
         const deltaXPixels = width / (xGridLines - 1);
         const deltaPPixels = height / (pGridLines - 1);
@@ -268,9 +290,12 @@ export class Density {
     readonly maxValue: number;
     readonly xRange: [number, number]|undefined;
     readonly pRange: [number, number]|undefined;
+    readonly cellsX: number|undefined;
+    readonly cellsP: number|undefined;
 
     constructor(values: ArrayLike<number>, dimX: number, options?: Partial<{
-                maxValue: number, xRange: [number, number], pRange: [number, number]}>) {
+                maxValue: number, xRange: [number, number], pRange: [number, number], 
+                cellsX: number, cellsP: number; }>) {
         this.values = values;
         this.dimX = dimX;
         if (values.length % this.dimX !== 0)
@@ -280,6 +305,8 @@ export class Density {
         this.maxValue = maxValue;
         this.xRange = options?.xRange;
         this.pRange = options?.pRange;
+        this.cellsX = options?.cellsX;
+        this.cellsP = options?.cellsP;
     }
 
 }

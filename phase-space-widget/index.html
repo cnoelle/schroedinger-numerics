@@ -12,9 +12,12 @@
         <input type="button" id="run" value="Run" style="cursor: pointer;" title="Start the animation">
         <input type="button" id="stop" value="Stop" disabled="disabled" style="cursor: pointer;" 
             title="Stop the animation">
+        <input type="file" id="file" accept="application/json">
+        <input type="button" id="upload" value="Upload" style="cursor: pointer;" title="Start file upload" disabled="disabled">
     </div>
     <script type="module">
         import { PhaseSpaceWidget, Density } from "./bundle.js";
+        import { FileImport } from "./fileImport.js";
         PhaseSpaceWidget.register();
 
         const phaseSpace = document.querySelector("phase-space");
@@ -34,7 +37,7 @@
             stopped = false;
             runBtn.setAttribute("disabled", "disabled");
             stopBtn.removeAttribute("disabled");
-            let start, previousTimestamp;
+            let start = undefined;
             
             const center = t => {
                 const delta = 2 * Math.PI * t;
@@ -78,8 +81,11 @@
             stopBtn.setAttribute("disabled", "disabled");
             runBtn.removeAttribute("disabled");
         }
-        runBtn.addEventListener("click", runAnimation);
-        stopBtn.addEventListener("click", stopAnimation);
+        let currentRunListener = runAnimation;
+        let currentStopListener = stopAnimation;
+
+        runBtn.addEventListener("click", currentRunListener);
+        stopBtn.addEventListener("click", currentStopListener);
         runAnimation();
         stopAnimation();
         
@@ -88,6 +94,58 @@
             runAnimation: runAnimation,
             stopAnimation: stopAnimation
         };
+
+        const fileBtn = document.querySelector("input#file");
+        const uploadBtn = document.querySelector("input#upload");
+
+        fileBtn.addEventListener("change", e => {
+            const empty = !e.currentTarget.value;
+            if (empty)
+                uploadBtn.setAttribute("disabled", "disabled");
+            else
+                uploadBtn.removeAttribute("disabled");
+        });
+        fileBtn.dispatchEvent(new Event("change"));
+
+        async function uploadFile() {
+            const file = fileBtn.files[0];
+            if (!file)
+                return;
+            let result;
+            try {
+                result = await FileImport.read(file);
+                if (!result)
+                    throw new Error("empty");
+            } catch(e) {
+                console.log("Failed to upload file", e);
+                return;
+            }
+            currentStopListener();
+            runBtn.removeEventListener("click", currentRunListener);
+            stopBtn.removeEventListener("click", currentStopListener);
+            const animationController = FileImport.setupAnimation(result, phaseSpace);
+            animationController.addListener({
+                started: () => {
+                    runBtn.setAttribute("disabled", "disabled");
+                    stopBtn.removeAttribute("disabled");
+                },
+                stopped: () => {
+                    stopBtn.setAttribute("disabled", "disabled");
+                    runBtn.removeAttribute("disabled");
+                }
+            });
+            currentRunListener = () => animationController.run();
+            currentStopListener = () => animationController.stop();
+            runBtn.addEventListener("click", currentRunListener);
+            stopBtn.addEventListener("click", currentStopListener);
+            window.phaseSpace = {
+                runAnimation: currentRunListener,
+                stopAnimation: currentStopListener
+            };
+            animationController.init();
+        }
+        uploadBtn.addEventListener("click", uploadFile);
+
 
     </script>
 </body>
