@@ -135,12 +135,13 @@ export class FileImport {
             const arr = [0];
             for (let p=0; p<height; p++) {
                 const rowStart = p * width;
-                const pValueIdx = Math.min(Math.round(p/height * (pSteps-1)), pSteps-1);
-                let knownZero = false;
+                const pValueIdx = Math.min(Math.floor(p/height * pSteps), pSteps-1);
+                let knownZeroP = false;
                 if (timestep.pRange && (pValueIdx < timestep.pRange[0] || pValueIdx >= timestep.pRange[1]))
-                    knownZero = true;
+                    knownZeroP = true;
                 for (let x=0; x<width; x++) {
-                    const xValueIdx = Math.min(Math.round(x/width * (xSteps-1)), xSteps-1);
+                    const xValueIdx = Math.min(Math.floor(x/width * xSteps), xSteps-1);
+                    let knownZero = knownZeroP;
                     if (!knownZero && timestep.xRange && (xValueIdx < timestep.xRange[0] || xValueIdx >= timestep.xRange[1]))
                         knownZero = true;
                     if (knownZero) {
