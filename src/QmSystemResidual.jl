@@ -49,7 +49,9 @@ function getPsi(system::QmSystemResidual)::AbstractWaveFunction
 end
 
 function trace(system::QmSystemResidual, timeSteps::Int=1000;
-        folder::String = "./results") # io::IO
+        folder::String = "./results",
+        momentumRepresentationPsi::Union{MomentumRepresentation, Nothing}=nothing,
+        momentumRepresentationPhi::Union{MomentumRepresentation, Nothing}=nothing) # io::IO
     representation::PositionRepresentation = system.propagator.representation
     if !(representation isa PositionRepresentation)
         throw(ErrorException("Can only handle position space, currently")) # XXX why?
@@ -74,6 +76,8 @@ function trace(system::QmSystemResidual, timeSteps::Int=1000;
     psiTildeFile0 = joinpath(folder, "psiTilde.csv")
     observablesFile0 = joinpath(folder, "observables.csv")
     observablesQmFile0 = joinpath(folder, "observablesQm.csv")
+    psiPFile::String = isnothing(momentumRepresentationPsi) ? nothing : joinpath(folder, "psiP.csv")
+    phiPFile::String = isnothing(momentumRepresentationPsi) ? nothing : joinpath(folder, "phiP.csv")
     VtFile0 = joinpath(folder, "V_t.csv")
     open(settingsFile0, "w") do settingsFile
         _writeSettingsQm(system, settingsFile, points=psiRepresentation.points)
@@ -84,6 +88,14 @@ function trace(system::QmSystemResidual, timeSteps::Int=1000;
     open(observablesFile0, "w") do fileObservables
     open(observablesQmFile0, "w") do fileObservablesQm
     open(VtFile0, "w") do filePotential
+    if !isnothing(psiPFile)
+        filePsiP = open(psiPFile, "w")
+        _writePointsHeader(filePsiP, momentumRepresentationPsi.points)
+    end
+    if !isnothing(phiPFile)
+        filePhiP = open(phiPFile, "w")
+        _writePointsHeader(filePhiP, momentumRepresentationPhi.points)
+    end
         _writePointsHeader(filePsiTilde, points0)
         _writePointsHeader(filePsi, psiRepresentation.points) # assume a PositionRepresentation as well
         _writePointsHeader(filePotential, points0, "V")
@@ -97,6 +109,14 @@ function trace(system::QmSystemResidual, timeSteps::Int=1000;
             psi::AbstractWaveFunction = getPsi(system.currentState)
             _writePointsLine(filePsiTilde, Phi, representation)
             _writePointsLine(filePsi, psi, psiRepresentation)
+            if !isnothing(psiPFile)
+                # XXX need to convert the (Weyl) TranslatedWaveFunction into a PointsWaveFunction
+                psi = asWavefunction(values(psi, psiRepresentation), psiRepresentation)
+                _writePointsLine(filePsiP, psi, momentumRepresentationPsi)
+            end
+            if !isnothing(phiPFile)
+                _writePointsLine(filePhiP, Phi, momentumRepresentationPhi)
+            end
             if !isnothing(V)
                 _writePotentialLine(filePotential, LinearAlgebra.diag(asCircleOperator(V, pnt, representation)))
             end
@@ -123,6 +143,12 @@ function trace(system::QmSystemResidual, timeSteps::Int=1000;
             write(filePoints, "$(pnt.q), $(pnt.p), $(classicalEnergy)\n")
             system = propagate(system, 1)
         end # for timeSteps
+    if !isnothing(psiPFile)
+        close(filePsiP)
+    end
+    if !isnothing(phiPFile)
+        close(filePhiP)
+    end
     end # open filePotential
     end # open fileObserservablesQm
     end # open fileObservables

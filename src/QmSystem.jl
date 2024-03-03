@@ -99,8 +99,9 @@ function _writeSettingsQm(system::AbstractQmSystem, file::IO;
     write(file, "\n}\n")
 end # _writeSettingsQm
 
-function trace(system::AbstractQmSystem, timeSteps::Int=1000;
-        folder::String = "./results",
+function trace(system::AbstractQmSystem, timeSteps::Int=1000; 
+        folder::String = "./results", 
+        momentumRepresentation::Union{MomentumRepresentation, Nothing}=nothing,
         parameters::Union{Dict{String, Any}, Nothing}=nothing) # io::IO
     rep::QmRepresentation = representation(system)
     if !(rep isa PositionRepresentation)
@@ -109,6 +110,7 @@ function trace(system::AbstractQmSystem, timeSteps::Int=1000;
     Base.Filesystem.mkpath(folder)
     settingsFile::String = joinpath(folder, "settings.json")
     psiFile::String = joinpath(folder, "psi.csv")
+    psiPFile::String = isnothing(momentumRepresentation) ? nothing : joinpath(folder, "psiP.csv")
     observablesFile::String = joinpath(folder, "observables.csv")
     points0::AbstractArray{<:Real, 1} = rep.points
     x = XPolynomial([0., 1.])
@@ -119,24 +121,34 @@ function trace(system::AbstractQmSystem, timeSteps::Int=1000;
         _writeSettingsQm(system, settingsFile1, parameters=parameters)
     end # settingsFile
     open(psiFile, "w") do file
-        open(observablesFile, "w") do fileObservables
-            _writePointsHeader(file, points0)
-            _writeObservablesHeader(fileObservables)
-            for _ in 1:timeSteps
-                psi = getPsi(system)
-                # write wave function values
-                _writePointsLine(file, psi, rep)
-                # write expectation values
-                xVal::Real = expectationValue(psi, x, rep)
-                x2Val::Real = expectationValue(psi, x2, rep)
-                pVal::Real = expectationValue(psi, p, rep)
-                p2Val::Real = expectationValue(psi, p2, rep)
-                energy::Real = expectationValue(psi, hamiltonian(system), rep)
-                # Note: var(X) = x2Val - xVal^2
-                _writeObservablesLine(fileObservables, xVal, x2Val, pVal, p2Val, energy)
-                system = propagate(system, 1)
-            end # for k
-        end # open fileObservables
+    open(observablesFile, "w") do fileObservables
+    if !isnothing(psiPFile)
+        fileP = open(psiPFile, "w")
+        _writePointsHeader(fileP, momentumRepresentation.points)
+    end
+        _writePointsHeader(file, points0)
+        _writeObservablesHeader(fileObservables)
+        for _ in 1:timeSteps
+            psi = getPsi(system)
+            # write wave function values
+            _writePointsLine(file, psi, rep)
+            # write expectation values
+            xVal::Real = expectationValue(psi, x, rep)
+            x2Val::Real = expectationValue(psi, x2, rep)
+            pVal::Real = expectationValue(psi, p, rep)
+            p2Val::Real = expectationValue(psi, p2, rep)
+            energy::Real = expectationValue(psi, hamiltonian(system), rep)
+            # Note: var(X) = x2Val - xVal^2
+            _writeObservablesLine(fileObservables, xVal, x2Val, pVal, p2Val, energy)
+            if !isnothing(psiPFile)
+                _writePointsLine(fileP, psi, momentumRepresentation)
+            end
+            system = propagate(system, 1)
+        end # for k
+    if !isnothing(psiPFile)
+        close(fileP)
+    end
+    end # open fileObservables
     end # open file
     return system
     

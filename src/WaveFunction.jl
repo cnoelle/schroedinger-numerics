@@ -288,6 +288,41 @@ function Base.:values(psi::SumWaveFunction, representation::QmRepresentation)::A
     return sum(wf -> values(wf, representation), psi.psis)
 end # values
 
+function sampled(psi::PositionWaveFunction, points::AbstractArray{<:Real, 1})::PointsWaveFunction
+    values::AbstractArray{<:Number, 1} = map(x -> psi.func(x), points)
+    return PointsWaveFunction(points, values)
+end # sampled
+
+"""
+The momentum space values of a position space wave function (=> Fourier transform)
+"""
+function Base.:values(psi::PointsWaveFunction, representation::MomentumRepresentation)::AbstractArray{<:Complex, 1}
+    pointsP::AbstractArray{<:Real, 1} = representation.points
+    pointsX::AbstractArray{<:Real, 1} = psi.points
+    hbar::Real = qmConfig(representation).hbar
+    prefactor::Real = 1/sqrt(2*pi*hbar)
+    if pointsX isa AbstractRange
+        deltaX::Float64 = convert(Float64, step(pointsX))
+        return map(p -> prefactor * deltaX * sum(LinearAlgebra.dot(psi.values, exp.(im/hbar * p * pointsX))), pointsP)
+    end # if
+    lP::Int = length(pointsP)
+    lX::Int = length(pointsX)
+    v::AbstractArray{ComplexF64} = fill(complex(0.), lP)
+    for idxP in 1:lP
+        p = pointsP[idxP]
+        previousX::Real = points[1]
+        result::ComplexF64 = 0.
+        for idxX in 1:lX
+            x = pointsX[idxX]
+            result += psi.values[idxX] * exp(im/hbar*p*x) * (x-previousX)
+            previousX = x
+        end 
+        v[idxP] = result
+    end # for idx
+    return v
+end # values
+
+
 
 "Apply the Weyl operator U(q,p) to the wave function psi"
 function weylTranslate(psi::AbstractWaveFunction, point0::AbstractPoint, hbar::Real)::AbstractWaveFunction
@@ -333,6 +368,6 @@ LinearAlgebra.:normalize(psi::AbstractWaveFunction, representation::QmRepresenta
 ##### Utitlity functions below
 
 
-export AbstractWaveFunction, norm_sqr, expectationValue, asWavefunction
-export PointsWaveFunction, PositionWaveFunction
+export AbstractWaveFunction, norm_sqr, expectationValue, normalize, asWavefunction
+export PointsWaveFunction, PositionWaveFunction, sampled
 export weylTranslate

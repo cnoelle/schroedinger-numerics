@@ -11,9 +11,9 @@ but also assigns a \"tilde\" operator and \"circle\" operator (functions
 abstract type QmRepresentation 
 end # QmRepresentation
 
-function qmConfig(rep::QmRepresentation)::SchroedingerConfig
-    throw(ErrorException("not implemented"))
-end
+#function qmConfig(rep::QmRepresentation)::SchroedingerConfig
+#    throw(ErrorException("not implemented"))
+#end
 
 "An operator acting on wave functions in a concrete representation"
 Operator = Union{AbstractArray{<:Number, 2}, LinearAlgebra.UniformScaling{<:Number}}
@@ -49,7 +49,13 @@ struct PositionRepresentation <: QmRepresentation
     config::SchroedingerConfig
 end # PositionRepresentation
 
-function qmConfig(rep::PositionRepresentation)::SchroedingerConfig
+struct MomentumRepresentation <: QmRepresentation
+    "Points in momentum space"
+    points::AbstractArray{<:Real, 1}  
+    config::SchroedingerConfig
+end # PositionRepresentation
+
+function qmConfig(rep::QmRepresentation)::SchroedingerConfig
     return rep.config
 end
 
@@ -238,5 +244,5 @@ function asCircleOperator(f::Union{ScalarSumFunction, ScalarXSumFunction}, point
 end # asCircleOperator
 
 
-export QmRepresentation, PositionRepresentation, qmConfig,
+export QmRepresentation, PositionRepresentation, MomentumRepresentation, qmConfig,
     Operator, asOperator, asTildeOperator, asCircleOperator, deltaX

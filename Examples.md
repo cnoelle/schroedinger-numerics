@@ -152,12 +152,9 @@ H = PMonomial(2)/2 + XPolynomial([0, 0, 1])
 q0 = 0.6
 psi0 = PositionWaveFunction((x::Real) -> exp(-1/2/config.hbar * (x-q0)^2))
 point0 = Point(q0, 0)
-Phi0 = weylTranslate(psi0, point0, config.hbar)
 T = 2 * pi  # the oscillation period of the classical oscillator
 steps = 1000
 deltaT=T/steps   # deltaT = 1000th part of an oscillation period
-# here we need to enlarge the grid, because the wave function now oscillates between -1 and 1. The width of the initial wave function remains roughly 0.03, so we keep the step size as before
-rep = PositionRepresentation(range(-0.2, 0.2, step=0.001), config)
 psiRep = PositionRepresentation(range(-q0 - 0.2, q0 + 0.2, step=0.001), config)
 systemCoherent0 = QmSystem(psi0, H, psiRep, deltaT)
 trace(systemCoherent0, steps + 5, folder="results/harmonicOscillator/coherentState" * string(q0) * "Qm")

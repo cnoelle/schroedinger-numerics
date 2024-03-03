@@ -196,8 +196,12 @@ export class PhaseSpaceWidget extends HTMLElement {
             }>) {
         const x = options?.x;
         const p = options?.p;
-        const xGridLines = options?.xGridLines || 5;
-        const pGridLines = options?.pGridLines || 5;
+        let xGridLines = options?.xGridLines || 5;
+        let pGridLines = options?.pGridLines || 5;
+        while (xGridLines > width/5)
+            xGridLines = Math.max(Math.floor(xGridLines/10), 5);
+        while (pGridLines > height/5)
+            pGridLines = Math.max(Math.floor(pGridLines/10), 5);
         const xTicks = options?.xTicks || Math.min(xGridLines, 5);
         const pTicks = options?.pTicks || Math.min(pGridLines, 5);
         const offsetX = this.#boundary;
