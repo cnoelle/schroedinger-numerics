@@ -238,7 +238,7 @@ export class PhaseSpaceWidget extends HTMLElement {
                     ctx.textAlign = "right";
                 else
                     ctx.textAlign = "center";
-                ctx.fillText(value + "", xPos, height + 15);
+                ctx.fillText(PhaseSpaceWidget._format(value), xPos, height + 15);
             }
         }
         if (p && pTicks > 1) {
@@ -253,7 +253,7 @@ export class PhaseSpaceWidget extends HTMLElement {
                     ctx.textBaseline = "top";
                 else
                     ctx.textBaseline = "middle";
-                ctx.fillText(value + "", offsetX - 10, pPos);
+                ctx.fillText(PhaseSpaceWidget._format(value), offsetX - 10, pPos);
             }
         }
         ctx.textAlign = "center";
@@ -282,6 +282,10 @@ export class PhaseSpaceWidget extends HTMLElement {
             default:
                 this.#canvas.setAttribute(name, newValue);
         }
+    }
+
+    private static _format(a: number): string {
+        return a.toLocaleString("en-US", {minimumSignificantDigits: 1, maximumSignificantDigits: 2}) 
     }
 
 }
