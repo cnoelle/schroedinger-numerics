@@ -47,10 +47,12 @@ export interface TimestepWaveFunction {
  */
 export interface WaveFunctionResultFiles {
 
+    title: string;
     x: Dimension;
     p: Dimension;
     numTimesteps: number;
     timesteps: Iterator<TimestepWaveFunction>;
+    hbar?: number;
 
 }
 
@@ -66,6 +68,7 @@ export interface AnimationControl {
     run(): void;
     stop(): void;
     isRunning(): boolean;
+    close(): void;
     addListener(listener: AnimationListener): void;
 }
 
@@ -74,7 +77,7 @@ class AnimationControlImpl implements AnimationControl {
     #stopped: boolean = false;
     readonly #listeners: Array<AnimationListener> = [];
 
-    constructor() {}
+    constructor(private readonly _closeCallback?: () => void) {}
 
     init() {
         this.#listeners.filter(l => !!l.init).forEach(l => l.init());
@@ -92,6 +95,12 @@ class AnimationControlImpl implements AnimationControl {
 
     isRunning(): boolean {
         return !this.#stopped;
+    }
+
+    close(): void {
+        this.stop();
+        if (this._closeCallback)
+            this._closeCallback();
     }
 
     addListener(listener: AnimationListener): void {
@@ -128,14 +137,19 @@ export class FileImport {
         });
     }
 
-    static async readWaveFunction(files: Array<File>): Promise<WaveFunctionResultFiles> {
+    static async readWaveFunction(files: Array<File>): Promise<WaveFunctionResultFiles|[WaveFunctionResultFiles, WaveFunctionResultFiles]> {
         if (!(files?.length > 1))
             return undefined;
         const psiXFile = files.find(f => f.name === "psi.csv");
+        const phiXFile = files.find(f => f.name === "psiTilde.csv" || f.name === "phi.csv");
         const psiPFile = files.find(f => f.name === "psiP.csv");
-        if (!psiXFile || !psiPFile)
+        const phiPFile = files.find(f => f.name === "phiP.csv");
+        const settingsFile = files.find(f => f.name === "settings.json");
+        const psiComplete: boolean = !!psiXFile && !!psiPFile;
+        const phiComplete: boolean = !!phiXFile && !!phiPFile;
+        if (!phiComplete && !psiComplete)
             return undefined;
-        const psiXPromise: Promise<WaveFunctionCsvParser> = new Promise((resolve, reject) => {
+        const loadWf = (file: File): Promise<WaveFunctionCsvParser> => new Promise((resolve, reject) => {
             const reader = new FileReader();
             reader.onload = (event: ProgressEvent<FileReader>) => {
                 const csv: string = event.target.result as string;
@@ -152,37 +166,140 @@ export class FileImport {
                     task.progress(event.loaded, event.total);
             };
             */
-            reader.readAsText(psiXFile, "UTF-8");
+            reader.readAsText(file, "UTF-8");
         });
-        const psiPPromise: Promise<WaveFunctionCsvParser> = new Promise((resolve, reject) => {
+        const wfFiles = psiComplete ? [psiXFile, psiPFile] : [phiXFile, phiPFile];
+        if (psiComplete && phiComplete)
+            wfFiles.push(...[phiXFile, phiPFile]);
+        const wfPromises = wfFiles.map(loadWf);
+        const settingsPromise = !settingsFile ? Promise.resolve(undefined) : new Promise((resolve, reject) => {
             const reader = new FileReader();
             reader.onload = (event: ProgressEvent<FileReader>) => {
-                const csv: string = event.target.result as string;
                 try {
-                    resolve(new WaveFunctionCsvParser(csv));
+                    const json = JSON.parse(event.target.result as string);
+                    resolve(json);
                 } catch (e) {
                     reject(e);
                 }
             };
             reader.onerror = reject;
-            /*
-            reader.onprogress = (event: ProgressEvent<FileReader>) => {
-                if (event.lengthComputable) 
-                    task.progress(event.loaded, event.total);
-            };
-            */
-            reader.readAsText(psiPFile, "UTF-8");
+            reader.readAsText(settingsFile, "UTF-8");
         });
-        const [xParser, pParser]: [WaveFunctionCsvParser, WaveFunctionCsvParser] = await Promise.all([psiXPromise, psiPPromise]);
+        wfPromises.push(settingsPromise);
+        const results = await Promise.all(wfPromises);
+        const xParser1: WaveFunctionCsvParser = results[0];
+        const pParser1: WaveFunctionCsvParser = results[1];
+        const settings: any = results[results.length-1];
+        const res1 = FileImport._convertWfResult(xParser1, pParser1, settings, psiComplete ? "ψ" : "Φ");
+        if (results.length === 5) {
+            const xParser2: WaveFunctionCsvParser = results[2];
+            const pParser2: WaveFunctionCsvParser = results[3];
+            const res2 = FileImport._convertWfResult(xParser2, pParser2, settings, "Φ");
+            return [res1, res2];
+        }
+        return res1;
+    }
+
+    private static _convertWfResult(xParser: WaveFunctionCsvParser, pParser: WaveFunctionCsvParser, settings: any, title: string) {
         const xDim = xParser.dimension();
         const pDim = pParser.dimension();
         const numTimesteps = Math.min(xParser.numTimesteps(), pParser.numTimesteps());
         return {
+            title: title,
             x: xDim,
             p: pDim,
             numTimesteps: numTimesteps,
-            timesteps: new WaveFunctionIterator(numTimesteps, xParser, pParser)
+            timesteps: new WaveFunctionIterator(numTimesteps, xParser, pParser),
+            hbar: settings?.hbar
         }
+    }
+
+    static setupAnimationWfs(
+            results: Array<WaveFunctionResultFiles>, 
+            phaseSpaces: Array<PhaseSpaceWidget>,
+            closeListener?: () => void): AnimationControl {
+        const valuesByResult: Array<Uint8ClampedArray> = [];
+        for (let idx=0; idx<results.length; idx++) {
+            const phaseSpace = phaseSpaces[idx];
+            const result = results[idx];
+            const width = phaseSpace.width - phaseSpace.boundary;
+            const height = phaseSpace.height - phaseSpace.boundary;
+            const xDim = result.x;
+            const xSteps = xDim.steps;
+            const xStepSize = xDim.stepSize;
+            const xLower = xDim.lower;
+            const pDim = result.p;
+            const pSteps = pDim.steps;
+            const pStepSize = pDim.stepSize;
+            const pLower = pDim.lower;
+            const xRange: [number, number] = [xLower, xLower + xSteps * xStepSize];
+            const pRange: [number, number] = [pLower, pLower + pSteps * pStepSize];
+            const values = new Uint8ClampedArray(width * height);
+            const hbar: number|undefined = result.hbar;
+            const cellsX = hbar ? Math.floor((xRange[1] - xRange[0]) / Math.sqrt(hbar)) : undefined;
+            const cellsP = hbar ? Math.floor((pRange[1] - pRange[0]) / Math.sqrt(hbar)) : undefined;
+            const density = new Density(values, width, {maxValue: 255, xRange: xRange, pRange: pRange,
+                 cellsX: cellsX, cellsP: cellsP});
+            phaseSpace.values = density;
+            valuesByResult.push(values);
+        }
+
+        const controller: AnimationControlImpl = new AnimationControlImpl(closeListener);
+        let start: number|undefined = undefined;
+        const frameCnt: Array<number> = new Array(results.length).fill(-1);
+        const timestep: Array<TimestepWaveFunction|undefined> = new Array(results.length).fill(undefined);
+        function step(t: number|undefined) {
+            if (start === undefined)
+                start = t;
+            const secondsElapsed = t !== undefined ? (t - start)/1000 : 0;
+            const fraction = (secondsElapsed % 10)/10;
+            for (let idx=0; idx<results.length; idx++) {
+                const phaseSpace = phaseSpaces[idx];
+                const result = results[idx];
+                const width = phaseSpace.width - phaseSpace.boundary;
+                const height = phaseSpace.height - phaseSpace.boundary;
+                const timesteps = result.timesteps;
+                const numTimesteps = result.numTimesteps;
+                const pSteps = result.p.steps;
+                const xSteps = result.x.steps;
+                const frame = Math.floor(fraction * numTimesteps);
+                if (frame < numTimesteps) {
+                    while (frameCnt[idx] < frame || timestep[idx] === undefined) {
+                        const next = timesteps.next();
+                        if (next.done)
+                            break;
+                        timestep[idx] = next.value;
+                        frameCnt[idx]++;
+                    }
+                }
+                const arr = [0];
+                const ts = timestep[idx];
+                const maxValue = Math.max(...ts.valuesP) * Math.max(...ts.valuesX);
+                for (let p=0; p<height; p++) {
+                    const rowStart = p * width;
+                    const pValueIdx = Math.min(Math.floor(p/height * pSteps), pSteps-1);
+                    const pValue: number = ts.valuesP[pValueIdx];
+                    for (let x=0; x<width; x++) {
+                        const xValueIdx = Math.min(Math.floor(x/width * xSteps), xSteps-1);
+                        const xValue: number = ts.valuesX[xValueIdx];
+                        const value = Math.floor(xValue * pValue / maxValue * 256);
+                        // FIXME
+                        //console.log("Value", value, xValue, pValue, maxValue)
+                        arr[0] = value;
+                        valuesByResult[idx].set(arr, rowStart + x);
+                    }    
+                }
+                phaseSpace.draw();
+            }
+            if (t !== undefined && controller.isRunning())
+                window.requestAnimationFrame(step);
+        }
+        controller.addListener({
+            started: () => window.requestAnimationFrame(step), 
+            stopped: () => start = undefined,
+            init: () => step(undefined)
+        });
+        return controller;
     }
 
     static setupAnimationWf(result: WaveFunctionResultFiles, phaseSpace: PhaseSpaceWidget): AnimationControl {
@@ -201,8 +318,11 @@ export class FileImport {
         const xRange: [number, number] = [xLower, xLower + xSteps * xStepSize];
         const pRange: [number, number] = [pLower, pLower + pSteps * pStepSize];
         const values = new Uint8ClampedArray(width * height);
+        const hbar: number|undefined = result.hbar;
+        const cellsX = hbar ? Math.floor((xRange[1] - xRange[0]) / Math.sqrt(hbar)) : undefined;
+        const cellsP = hbar ? Math.floor((pRange[1] - pRange[0]) / Math.sqrt(hbar)) : undefined;
         const density = new Density(values, width, {maxValue: 255, xRange: xRange, pRange: pRange,
-            cellsX: xSteps, cellsP: pSteps});
+            cellsX: cellsX, cellsP: cellsP});
         const controller: AnimationControlImpl = new AnimationControlImpl();
         phaseSpace.values = density;
         let start: number|undefined = undefined;

@@ -7,7 +7,15 @@
 </head>
 <body>
     <h1>Phase space demo</h1>
-    <phase-space width="530" height="290" boundary="50" grid="true"></phase-space>
+    <div id="phase-space-flex" style="display: grid; grid-template-columns: auto auto 1fr; 
+            column-gap: 1em; row-gap: 1em; justify-items: center;">
+        <div id="title1" style="font-size: 1.5em;"></div><div id="title2" style="font-size: 1.5em;"></div><div></div>
+        <div>
+            <phase-space width="530" height="530" boundary="50" grid="true"></phase-space>
+        </div>
+        <div id="ph2"></div>
+        <div></div>
+    </div>
     <div style="display: flex; column-gap: 1em;">
         <input type="button" id="run" value="Run" style="cursor: pointer;" title="Start the animation">
         <input type="button" id="stop" value="Stop" disabled="disabled" style="cursor: pointer;" 
@@ -83,6 +91,7 @@
         }
         let currentRunListener = runAnimation;
         let currentStopListener = stopAnimation;
+        let currentCloseListener = stopAnimation;
 
         runBtn.addEventListener("click", currentRunListener);
         stopBtn.addEventListener("click", currentStopListener);
@@ -121,11 +130,30 @@
                 console.log("Failed to upload file", e);
                 return;
             }
-            currentStopListener();
+            currentCloseListener();
             runBtn.removeEventListener("click", currentRunListener);
             stopBtn.removeEventListener("click", currentStopListener);
-            const animationController = isMulti ? FileImport.setupAnimationWf(result, phaseSpace) : 
+            let animationController;
+            if (Array.isArray(result)) {
+                const ph2 = document.createElement("phase-space");
+                ph2.width = 530;
+                ph2.height = 530;
+                ph2.boundary = 50;
+                ph2.grid = true;
+                document.querySelector("#ph2").appendChild(ph2);
+                const closeListener = () => { 
+                    ph2.remove();
+                    document.querySelector("div#title2").innerText = "";
+                }
+                animationController = FileImport.setupAnimationWfs(result, [phaseSpace, ph2], closeListener);
+                document.querySelector("div#title1").innerText = result[0].title;
+                document.querySelector("div#title2").innerText = result[1].title;
+            } else {
+                animationController = isMulti ? FileImport.setupAnimationWf(result, phaseSpace) : 
                     FileImport.setupAnimation(result, phaseSpace);
+                if (isMulti)
+                    document.querySelector("div#title1").innerText = result.title;
+            }
             animationController.addListener({
                 started: () => {
                     runBtn.setAttribute("disabled", "disabled");
@@ -138,6 +166,7 @@
             });
             currentRunListener = () => animationController.run();
             currentStopListener = () => animationController.stop();
+            currentCloseListener = () => animationController.close();
             runBtn.addEventListener("click", currentRunListener);
             stopBtn.addEventListener("click", currentStopListener);
             window.phaseSpace = {
