@@ -303,7 +303,7 @@ function Base.:values(psi::PointsWaveFunction, representation::MomentumRepresent
     prefactor::Real = 1/sqrt(2*pi*hbar)
     if pointsX isa AbstractRange
         deltaX::Float64 = convert(Float64, step(pointsX))
-        return map(p -> prefactor * deltaX * sum(LinearAlgebra.dot(psi.values, exp.(im/hbar * p * pointsX))), pointsP)
+        return map(p -> prefactor * deltaX * sum(LinearAlgebra.dot(psi.values, exp.(-im/hbar * p * pointsX))), pointsP)
     end # if
     lP::Int = length(pointsP)
     lX::Int = length(pointsX)
@@ -314,7 +314,7 @@ function Base.:values(psi::PointsWaveFunction, representation::MomentumRepresent
         result::ComplexF64 = 0.
         for idxX in 1:lX
             x = pointsX[idxX]
-            result += psi.values[idxX] * exp(im/hbar*p*x) * (x-previousX)
+            result += psi.values[idxX] * exp(-im/hbar*p*x) * (x-previousX)
             previousX = x
         end 
         v[idxP] = result

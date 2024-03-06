@@ -76,8 +76,8 @@ function trace(system::QmSystemResidual, timeSteps::Int=1000;
     psiTildeFile0 = joinpath(folder, "psiTilde.csv")
     observablesFile0 = joinpath(folder, "observables.csv")
     observablesQmFile0 = joinpath(folder, "observablesQm.csv")
-    psiPFile::String = isnothing(momentumRepresentationPsi) ? nothing : joinpath(folder, "psiP.csv")
-    phiPFile::String = isnothing(momentumRepresentationPsi) ? nothing : joinpath(folder, "phiP.csv")
+    psiPFile::Union{String, Nothing} = isnothing(momentumRepresentationPsi) ? nothing : joinpath(folder, "psiP.csv")
+    phiPFile::Union{String, Nothing} = isnothing(momentumRepresentationPsi) ? nothing : joinpath(folder, "phiP.csv")
     VtFile0 = joinpath(folder, "V_t.csv")
     open(settingsFile0, "w") do settingsFile
         _writeSettingsQm(system, settingsFile, points=psiRepresentation.points)
