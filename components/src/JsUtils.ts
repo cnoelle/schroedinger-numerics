@@ -10,6 +10,7 @@ export class JsUtils {
         text?: string;
         html?: string;
         dataset?: Map<string, string>;
+        attributes?: Map<string, string>;
     }): HTMLElementTagNameMap[T] {
         const el: HTMLElementTagNameMap[T] = document.createElement(tag);
         if (options?.classes?.length > 0)
@@ -18,6 +19,8 @@ export class JsUtils {
             el.id = options.id;
         if (options?.title)
             el.title = options.title;
+        if (options?.attributes)
+            options.attributes.forEach(([value, key]) => el.setAttribute(key, value));
         if (options?.text)
             el.innerText = options.text;
         else if (options?.html)

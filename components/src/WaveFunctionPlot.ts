@@ -18,7 +18,7 @@ export class WaveFunctionPlot extends HTMLElement implements QmWidget {
     }
 
     /**
-     * Call once to register the new tag type "<canvas2d-zoom></canvas2d-zoom>"
+     * Call once to register the new tag type "<wavefunction-plot></wavefunction-plot>"
      * @param tag 
      */
     static register(tag?: string) {

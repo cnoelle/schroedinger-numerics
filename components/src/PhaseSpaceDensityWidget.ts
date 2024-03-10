@@ -8,7 +8,7 @@ import { Coordinates, QmWidget, QuantumSettings, QuantumSystem, QuantumSystemRes
  */
 export class PhaseSpaceDensityWidget extends HTMLElement implements QmWidget {
 
-    private static DEFAULT_TAG: string = "phase-space";
+    private static DEFAULT_TAG: string = "phase-space-density";
     private static _tag: string|undefined;
 
     static get observedAttributes() {
@@ -16,7 +16,7 @@ export class PhaseSpaceDensityWidget extends HTMLElement implements QmWidget {
     }
 
     /**
-     * Call once to register the new tag type "<canvas2d-zoom></canvas2d-zoom>"
+     * Call once to register the new tag type "<phase-space-density></phase-space-density>"
      * @param tag 
      */
     static register(tag?: string) {

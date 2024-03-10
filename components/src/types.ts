@@ -140,6 +140,26 @@ export enum SimulationState {
     DONE = "DONE"    
 }
 
+export type SimulationStateChange = "start"|"stop"|"pause"|"reset"|"stepForward"|"stepBackward";
+
+/**
+ * Fired with type: "reset"
+ */
+export interface SimulationStateReset {
+    fraction: number;
+}
+
+/**
+ * Fired with type "durationChange"
+ */
+export interface SimulationDurationChange {
+    seconds: number;
+}
+
+export interface SimulationStateListener {
+    stateChanged: (simulationState: SimulationState) => void;
+    onProgress?: (fraction: number) => void;
+}
 
 
 
