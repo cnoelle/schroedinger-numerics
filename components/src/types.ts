@@ -1,3 +1,5 @@
+import { ColorRgba } from "./Color";
+
 export interface PhaseSpacePoint {
     readonly x: number;
     readonly p: number;
@@ -40,8 +42,8 @@ export interface QuantumSystem {
 }
 
 export interface QuantumSystemResidual extends QuantumSystem, ClassicalSystem {
-    readonly phi: Array<WaveFunctionData>;
-    readonly phiP?: Array<WaveFunctionData>;
+    readonly phi: WaveFunctionData;
+    readonly phiP?: WaveFunctionData;
 
     /**
      * the time-dependent effective potential for \phi
@@ -112,8 +114,17 @@ export type ClassicalSettings = {
     readonly scheme: Scheme;
 } & Potential;
 
-// TODO these also need to encode colors
-export type SimulationParameters = (QuantumSettings|ClassicalSettings)&{id: string;};
+/**
+ * RGBA format
+ */
+export type Color = [number, number, number, number];
+
+export interface VisualizationSettings {
+    id: string;
+    color: ColorRgba;
+}
+
+export type SimulationParameters = (QuantumSettings|ClassicalSettings)&VisualizationSettings;
 
 export interface QmWidget {
     initialize(settings: Array<SimulationParameters>): void;  // TODO further parameters?

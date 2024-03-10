@@ -2,9 +2,10 @@ import * as uPlot from "uplot";
 import { AlignedData, Options, Series } from "uplot";
 // TODO not working in production mode?
 import "../node_modules/uplot/dist/uPlot.min.css";
-import { ColorPalette } from "./colorPalette.js";
+//import { ColorPalette } from "./colorPalette.js";
 import { JsUtils } from "./JsUtils.js";
 import { ClassicalSettings, Coordinates, QmWidget, QuantumSettings, QuantumSystem, QuantumSystemResidual, SimulationParameters, SimulationSystem, WaveFunctionData } from "./types.js";
+
 
 export class WaveFunctionPlot extends HTMLElement implements QmWidget {
 
@@ -236,7 +237,8 @@ export class WaveFunctionPlot extends HTMLElement implements QmWidget {
         const psiLabel: string = this.#waveFunctionType === "phi" ? "Φ" : "ψ";
         for (const id of ids) {
             idx++;
-            const colors: [string, string, string] = [ColorPalette.getColor(idx, 0), ColorPalette.getColor(idx, 1), ColorPalette.getColor(idx, 2)]
+            /*const colors: [string, string, string] = [ColorPalette.getColor(idx, 0), ColorPalette.getColor(idx, 1), ColorPalette.getColor(idx, 2)]*/
+            const color = settings[idx].color.toString();
             const psiSquared: Series = {
                 label: multiIds ? "|" + psiLabel +"_" + id +"|" : "|" + psiLabel +"|",
                 //fill // TODO color
@@ -245,8 +247,8 @@ export class WaveFunctionPlot extends HTMLElement implements QmWidget {
                 //value: (self, rawValue) => "$" + rawValue.toFixed(2),
             
                 // series style
-                points: { show: true, size: 2, fill: colors[0]},
-                stroke: /*"blue"*/ colors[0],
+                points: { show: true, size: 2, fill:/* colors[0]*/ color},
+                stroke: /* colors[0] */ color,
                 width: 1,
                 scale: "1"
                 //fill: "rgba(0, 255, 0, 0.1)", // TODO configurable
@@ -260,8 +262,8 @@ export class WaveFunctionPlot extends HTMLElement implements QmWidget {
                 //value: (self, rawValue) => "$" + rawValue.toFixed(2),
             
                 // series style
-                points: { show: true, size: 2, fill: colors[1]},
-                stroke: /*"red"*/ colors[1],
+                points: { show: true, size: 2, fill: /*colors[1]*/ color},
+                stroke: /* colors[1] */ color,
                 width: 1,
                 scale: "1",
                 //fill: "rgba(0, 255, 0, 0.1)", // TODO configurable
@@ -269,14 +271,13 @@ export class WaveFunctionPlot extends HTMLElement implements QmWidget {
             };
             const psiImg: Series = {
                 label: multiIds ? "|Im(" + psiLabel + "_" + id +")|" : "|Im(" + psiLabel + ")|",
-                //fill // TODO color
                 show: false,
                 spanGaps: false,
                 //value: (self, rawValue) => "$" + rawValue.toFixed(2),
             
                 // series style
-                points: { show: true, size: 2, fill: colors[2]},
-                stroke: colors[2],
+                points: { show: true, size: 2, fill: /*colors[2]*/color},
+                stroke: /*colors[2]*/color,
                 width: 1,
                 scale: "1"
                 //fill: "rgba(0, 255, 0, 0.1)", // TODO configurable

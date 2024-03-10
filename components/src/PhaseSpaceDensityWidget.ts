@@ -1,13 +1,18 @@
+import { JsUtils } from "./JsUtils.js";
+import { Coordinates, QmWidget, QuantumSettings, QuantumSystem, QuantumSystemResidual, SimulationParameters, SimulationSystem, VisualizationSettings, WaveFunctionData } from "./types.js";
+
 /**
- * A webcomponent that displays a phase space density, e.g., the absolute value of a wave function.
+ * A webcomponent that displays a phase space density derived from the absolute values 
+ * of a wave function in position space and momentum space
+ * TODO support multiple wave functions!
  */
-export class PhaseSpaceDensityWidget extends HTMLElement {
+export class PhaseSpaceDensityWidget extends HTMLElement implements QmWidget {
 
     private static DEFAULT_TAG: string = "phase-space";
     private static _tag: string|undefined;
 
     static get observedAttributes() {
-        return ["boundary", "color", "grid", "grid-line-width", "width", "height"]; 
+        return ["boundary", "grid", "grid-line-width", "width", "height", "wave-function-type"]; 
     }
 
     /**
@@ -31,8 +36,11 @@ export class PhaseSpaceDensityWidget extends HTMLElement {
 
     readonly #canvas: HTMLCanvasElement;
     readonly #offscreen: OffscreenCanvas;
-    #color: DensityColor = new DensityColor([255, 0, 0, 1]); // initial value: red
-    #currentValues: Density|undefined;
+    /*#color: ColorRgba = new DensityColor([255, 0, 0, 1]); // initial value: red*/
+    //#currentValues: Density|undefined;
+    #waveFunctionType: "psi"|"phi" = "psi";
+    #currentParameters: Array<QuantumSettings&VisualizationSettings>;
+
     #grid: boolean = false;
     #gridLineWidth: number = 0.5;
 
@@ -67,7 +75,7 @@ export class PhaseSpaceDensityWidget extends HTMLElement {
         this.#canvas.getContext("2d")!.restore();
     }
 
-    // TODO adapt canvas width and height according to the dimensions provided?
+    /*
     set values(values: Density|undefined) {
         this.#currentValues = values;
     }
@@ -75,7 +83,9 @@ export class PhaseSpaceDensityWidget extends HTMLElement {
     get values(): Density|undefined {
         return this.#currentValues;
     }
+    */
 
+    /*
     set color(color: DensityColor|string|[number, number, number, number]) {
         if (color === undefined)
             throw new Error("Color is undefined");
@@ -87,6 +97,7 @@ export class PhaseSpaceDensityWidget extends HTMLElement {
     get color(): DensityColor {
         return this.#color;
     }
+    */
 
     set grid(grid: boolean) {
         this.#grid = grid;
@@ -132,7 +143,13 @@ export class PhaseSpaceDensityWidget extends HTMLElement {
         return this.#canvas.height;
     }
 
+    set waveFunctionType(type: "psi"|"phi") {
+        this.#waveFunctionType = type;
+    }
 
+    get waveFunctionType(): "psi"|"phi" {
+        return this.#waveFunctionType;
+    }
 
     /**
      * Clear canvas
@@ -143,8 +160,14 @@ export class PhaseSpaceDensityWidget extends HTMLElement {
         ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height);
     }
 
-    draw() {
-        if (this.#currentValues === undefined) {
+    initialize(settings: Array<SimulationParameters>): void {
+        // @ts-ignore
+        this.#currentParameters = settings.filter(s => s.type === "qm");
+        this.clear();
+    }
+
+    set(state: Array<SimulationSystem>): void {
+        if (!(this.#currentParameters?.length > 0) || !(state?.length > 0)) {
             this.clear();
             return;
         }
@@ -158,7 +181,6 @@ export class PhaseSpaceDensityWidget extends HTMLElement {
         if (offscreen.height !== height)
             offscreen.height = height;
         const ctx = offscreen.getContext("2d");
-        const density: Density = this.#currentValues!;
         const dimsUnchanged = this.#lastWidth === width && this.#lastHeight === height;
         // try to avoid allocating over and over again
         const imageData: ImageData = dimsUnchanged ? this.#lastImageData : ctx.createImageData(width, height);
@@ -168,25 +190,61 @@ export class PhaseSpaceDensityWidget extends HTMLElement {
             this.#lastImageData = imageData;
         }
         const data: Uint8ClampedArray = imageData.data;
-        const color = [...this.#color.rgba];
-        const alphaBase = color[3];
-        for (let idxY=0; idxY<density.dimY; idxY++) {
-            const dataRowStartIdx = idxY * density.dimX * 4;
-            const valuesRowStartIdx = idxY * density.dimX;
-            for (let idxX=0; idxX<density.dimX; idxX++) {
-                const value = density.values[valuesRowStartIdx + idxX];
-                const fraction = value / density.maxValue;
-                color[3] = fraction * alphaBase * 255;
-                data.set(color, dataRowStartIdx + idxX *4);
-            }
-        }
-        ctx.putImageData(imageData, 0, 0);
         this.clear();
+        let idx=-1;
+        const quantumSystems: Array<QuantumSystem&{psiCoordinates: Coordinates}> = state
+            .filter(r => !!(r as {psiCoordinates: Coordinates}).psiCoordinates) as any;
+        let xMin, xMax, pMin, pMax;
+        for (const result of quantumSystems) {
+            idx++;
+            const color = [...this.#currentParameters[idx].color.rgba];
+            const alphaBase = color[3];
+            const wavefunctionX: WaveFunctionData = this.#waveFunctionType === "phi" ? 
+                (result as any as QuantumSystemResidual).phi : result.psi;
+            const wavefunctionP: WaveFunctionData = this.#waveFunctionType === "phi" ? 
+                (result as any as QuantumSystemResidual).phiP : result.psiP;
+            if (!wavefunctionX || !wavefunctionP)
+                continue;
+            const x = wavefunctionX.basePoints;
+            const p = wavefunctionP.basePoints;
+            const xLength = x.length;
+            const pLength = p.length;
+            if (xMin === undefined) {
+                xMin = x[0]; 
+                xMax = x[xLength-1];
+                pMin = p[0];
+                pMax = p[pLength-1];
+            }
+            // sqrt?
+            const pAbsValues = wavefunctionP.values.map(v => v[0]*v[0] + v[1]*v[1]);
+            const xAbsValues = wavefunctionX.values.map(v => v[0]*v[0] + v[1]*v[1]);
+            const max = Math.max(...pAbsValues) * Math.max(...xAbsValues);
+            for (let idxP = 0; idxP < pLength; idxP++) {
+                const dataRowStartIdx = idxP * xLength * 4;
+                const valuesRowStartIdx = idxP * xLength;
+                const pAbs = pAbsValues[idxP];
+                for (let idxX=0; idxX<xLength; idxX++) {
+                    const xAbs = xAbsValues[idxX];
+                    const value = pAbs * xAbs;
+                    const fraction = value / max;
+                    color[3] = fraction * alphaBase * 255;
+                    data.set(color, dataRowStartIdx + idxX *4);
+                }
+            }
+            // XXX for multiple wave function this simply overrides the former results
+            ctx.putImageData(imageData, 0, 0);
+        }
         if (this.#grid) {
-            const xGridLines: number = density.cellsX ? density.cellsX + 1 : 5;
-            const pGridLines: number = density.cellsP ? density.cellsP + 1 : 5;
-            this._drawGrid(width, height, {x: density.xRange, p: density.pRange,
-                xGridLines: xGridLines, pGridLines: pGridLines});
+            const hbarSqrt = Math.sqrt(this.#currentParameters[0].hbar);
+            let xGridLines = Math.floor((xMax + 1 - xMin) / hbarSqrt);
+            let pGridLines = Math.floor((pMax + 1 - pMin) / hbarSqrt);
+            //const xGridLines: number = density.cellsX ? density.cellsX + 1 : 5;
+            //const pGridLines: number = density.cellsP ? density.cellsP + 1 : 5;
+            // TODO else?
+            if (xGridLines > 0 && pGridLines > 0 && xGridLines < 100 && pGridLines < 100) {
+                this._drawGrid(width, height, {x: [xMin, xMax], p: [pMin, pMax],
+                    xGridLines: xGridLines, pGridLines: pGridLines});
+            }
         }
         canvas.getContext("2d").drawImage(offscreen, offset, 0);
     }
@@ -238,7 +296,7 @@ export class PhaseSpaceDensityWidget extends HTMLElement {
                     ctx.textAlign = "right";
                 else
                     ctx.textAlign = "center";
-                ctx.fillText(PhaseSpaceDensityWidget._format(value), xPos, height + 15);
+                ctx.fillText(JsUtils.formatNumber(value), xPos, height + 15);
             }
         }
         if (p && pTicks > 1) {
@@ -253,7 +311,7 @@ export class PhaseSpaceDensityWidget extends HTMLElement {
                     ctx.textBaseline = "top";
                 else
                     ctx.textBaseline = "middle";
-                ctx.fillText(PhaseSpaceDensityWidget._format(value), offsetX - 10, pPos);
+                ctx.fillText(JsUtils.formatNumber(value), offsetX - 10, pPos);
             }
         }
         ctx.textAlign = "center";
@@ -270,87 +328,25 @@ export class PhaseSpaceDensityWidget extends HTMLElement {
             case "boundary":
                 this.boundary = parseFloat(newValue);
                 break;
+                /*
             case "color":
                 this.color = newValue;
                 break;
+                */
             case "grid":
                 this.#grid = !!newValue;
                 break;
             case "grid-line-width":
                 this.gridLineWidth = parseFloat(newValue);
                 break;
+            case "wave-function-type":
+                newValue = newValue?.toLowerCase();
+                if (newValue === "psi" || newValue === "phi")
+                    this.#waveFunctionType = newValue;
+                break;
             default:
                 this.#canvas.setAttribute(name, newValue);
         }
     }
 
-    private static _format(a: number): string {
-        return a.toLocaleString("en-US", {minimumSignificantDigits: 1, maximumSignificantDigits: 2}) 
-    }
-
 }
-
-/**
- * FIXME to be based directly on the wave function model => product of x and p densities!
- */
-export class Density {
-
-    readonly values: ArrayLike<number>;
-    readonly dimX: number;
-    readonly dimY: number;
-    readonly maxValue: number;
-    readonly xRange: [number, number]|undefined;
-    readonly pRange: [number, number]|undefined;
-    readonly cellsX: number|undefined;
-    readonly cellsP: number|undefined;
-
-    constructor(values: ArrayLike<number>, dimX: number, options?: Partial<{
-                maxValue: number, xRange: [number, number], pRange: [number, number], 
-                cellsX: number, cellsP: number; }>) {
-        this.values = values;
-        this.dimX = dimX;
-        if (values.length % this.dimX !== 0)
-            throw new Error("Array length " + values.length + " not divisible by dimX: " + dimX);
-        const maxValue = options?.maxValue || 255;
-        this.dimY = values.length/dimX;
-        this.maxValue = maxValue;
-        this.xRange = options?.xRange;
-        this.pRange = options?.pRange;
-        this.cellsX = options?.cellsX;
-        this.cellsP = options?.cellsP;
-    }
-
-}
-
-export class DensityColor {
-
-    readonly rgba: Readonly<[number, number, number, number]>;
-
-    constructor(rgba: Readonly<[number, number, number, number]>|string) {
-        if (typeof rgba === "string")
-            rgba = DensityColor._parseRgbaString(rgba);
-        for (let idx=0; idx<3; idx++) {
-            const v = rgba[idx];
-            if (!Number.isFinite(v) || v < 0 || v > 255 || !Number.isInteger(v))
-                throw new Error("Invalid rgb value at position " + idx + " in rgba" + rgba);
-        }
-        const v = rgba[3];
-        if (!Number.isFinite(v) || v < 0 || v > 1)
-            throw new Error("Invalid alpha value at position rgba: " + rgba);
-        this.rgba = rgba;
-    }
-
-    private static _parseRgbaString(rgba: string): [number, number, number, number] {
-        const rgba0 = rgba;
-        rgba = rgba.trim().toLowerCase();
-        if (!rgba.startsWith("rgba(") || !rgba.endsWith(")"))
-            throw new Error("Invalid rgba color " + rgba);
-        rgba = rgba.substring("rgba(".length, rgba.length-1);
-        const values = rgba.split(",").map(v => Number.parseFloat(v));
-        if (values.length !== 4)
-            throw new Error("Invalid rgba string " + rgba0);
-        return values as any;
-    }
-
-}
-

@@ -1,7 +1,5 @@
 export class ColorPalette {
 
-
-
     private static readonly COLORS: Array<[string, string, string]> = [
         ["#DA1E37", "#BB3E03", "#EE9B00"], // red, brownish
         ["#1E88E5", "#003459", "#007EA7"],  // blueish
