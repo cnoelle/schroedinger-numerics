@@ -1,4 +1,4 @@
-import { ColorRgba } from "./Color";
+import { ColorRgba } from "./Color.js";
 
 export interface PhaseSpacePoint {
     readonly x: number;
@@ -35,10 +35,6 @@ export interface QuantumSystem {
     readonly time: number;
     readonly psi: WaveFunctionData;
     readonly psiP?: WaveFunctionData;
-    /**
-     * the time-independent potential for \psi
-     */
-    readonly psiPotential?: Array<number>;
 }
 
 export interface QuantumSystemResidual extends QuantumSystem, ClassicalSystem {
@@ -59,8 +55,8 @@ export interface Coordinates {
 
 export type SimulationSystem = 
     ClassicalSystem
-   |QuantumSystem&{psiCoordinates: Coordinates}
-   |QuantumSystemResidual&{psiCoordinates: Coordinates; phiCoordinates: Coordinates};
+   |QuantumSystem/*&{psiCoordinates: Coordinates}*/
+   |QuantumSystemResidual/*&{psiCoordinates: Coordinates; phiCoordinates: Coordinates}*/;
 
 export interface SimulationResultClassical {
     readonly id: string;
@@ -75,6 +71,10 @@ export interface SimulationResultQm {
     readonly p?: Array<number>;
 
     readonly settingsQm: QuantumSettings;
+    /**
+     * the time-independent potential for \psi  // XXX?
+     */
+    //readonly psiPotential?: Array<number>;
 }
 
 export interface SimulationResultQmResidual extends SimulationResultQm, SimulationResultClassical {
@@ -84,6 +84,8 @@ export interface SimulationResultQmResidual extends SimulationResultQm, Simulati
     readonly pPhi?: Array<number>;
     // TODO effective potential
 }
+
+export type SimulationResult = SimulationResultClassical|SimulationResultQm|SimulationResultQmResidual;
 
 /**
  * Either the coefficients of a polynomial, V0 + V1*x + 1/2 V2*x^2 + 1/6 V3*x^3 + ...,

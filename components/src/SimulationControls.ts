@@ -22,6 +22,8 @@ import { SimulationDurationChange, SimulationState, SimulationStateChange, Simul
  */
 export class SimulationControls extends HTMLElement implements SimulationStateListener {
 
+    public static readonly EVENTS: ReadonlyArray<string> 
+            = Object.freeze(["start", "stop", "pause", "reset", "stepBackward", "stepForward" ]);
     private static DEFAULT_TAG: string = "simulation-controls";
     private static _tag: string|undefined;
 
@@ -223,6 +225,10 @@ export class SimulationControls extends HTMLElement implements SimulationStateLi
         default:
             console.log("Unexpected simulation state", simulationState);
         }
+    }
+
+    state(): SimulationState {
+        return this.#state;
     }
 
     onProgress(fraction: number): void {

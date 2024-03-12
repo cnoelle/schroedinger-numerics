@@ -1,10 +1,10 @@
-import { ClassicalSettings, ExpectationValues, PhaseSpacePoint, QuantumSettings, SimulationSystem } from "./types.js";
+import { ClassicalSettings, ClassicalSystem, ExpectationValues, PhaseSpacePoint, QuantumSettings, QuantumSystem, QuantumSystemResidual, SimulationParameters, SimulationResult, SimulationResultClassical, SimulationResultQm, WaveFunctionData } from "./types.js";
 import { JsUtils } from "./JsUtils.js";
 
 /**
- * TODO adapt return types of upload methods to type definitions
+ * TODO add psiP and phiP files
  */
-export class FileImport {
+class FileImport {
 
     private static _nextRow(str: string, start: number, minExpectedEntries?: number): [Array<string>, number]|null {
         minExpectedEntries = minExpectedEntries||1;
@@ -27,7 +27,7 @@ export class FileImport {
     }
 
     static async parseClassicalFiles(reporter: AggregatingReporter, id: string, points: File, 
-                settings: File): Promise<ClassicalSimulationResult> {
+                settings: File): Promise<SimulationResultClassical> {
         const pointsReporter = reporter.add();
         
         const pointsPromise: Promise<Array<PhaseSpacePoint>> = new Promise((resolve, reject) => {
@@ -87,11 +87,16 @@ export class FileImport {
             const result = await Promise.all([pointsPromise, settingsPromise]);
             const pointsResult: Array<PhaseSpacePoint> = result[0];
             const settings2: ClassicalSettings = result[1];
+            const trajectory: Array<ClassicalSystem> = pointsResult.map((point, idx) => {
+                return {
+                    time: idx * settings2.deltaT,
+                    point: point
+                };
+            });
             return {
                 id: id,
-                points: pointsResult,
-                settings: settings2,
-                timesteps: pointsResult.map((_, idx) => idx * settings2.deltaT),
+                settingsClassical: settings2,
+                timesteps: trajectory
             };
         } catch (e) {
             reporter.error(e);
@@ -255,20 +260,20 @@ export class FileImport {
     }
 
     static async parseQmFiles(reporter: AggregatingReporter, id: string, waveFunction: File, observables: File, settings: File,
-                psiTilde?: File, observablesQm?: File, potential?: File): Promise<QuantumSimulationResult> {
+                psiTilde?: File, observablesQm?: File, potential?: File, classicalResults?: SimulationResultClassical): Promise<SimulationResultQm> {
         try {
-            return await FileImport._parseQmFiles0(id, reporter, waveFunction, observables, settings, psiTilde, observablesQm, potential);
+            return await FileImport._parseQmFiles0(id, reporter, waveFunction, observables, settings, psiTilde, observablesQm, potential, classicalResults);
         } catch (e) {
-            reporter.error(e);
-        } finally {
-            reporter.isDone();
+            reporter.error(e?.toString());
+            throw e;
+
+        /*} finally {
+            reporter.isDone();*/
         }
     }
 
     private static async _parseQmFiles0(id: string, reporter: AggregatingReporter,  waveFunction: File, observables: File, settings: File,
-            psiTilde?: File, observablesQm?: File, potential?: File): Promise<QuantumSimulationResult> {
-
-
+            psiTilde?: File, observablesQm?: File, potential?: File, classicalResults?: SimulationResultClassical): Promise<SimulationResultQm> {
         const waveFunctionPromise: Promise<[Array<number>, Array<Array<[number, number]>>]> = FileImport._parseWaveFunctionFile(waveFunction, reporter);
         const observablesPromise: Promise<Array<ExpectationValues>> = FileImport._parseObservablesFile(observables, reporter);
         const settingsPromise: Promise<QuantumSettings> = new Promise((resolve, reject) => {
@@ -295,58 +300,72 @@ export class FileImport {
         const psi = result[0][1];
         const observables2 = result[1];
         const settings2: QuantumSettings = result[2];
-        const waveFct: Array<Timeslice> = psi.map((values: Array<[number, number]>, idx: number) => {
-            const slice: Timeslice = {
-                x: x,
-                waveFunction: values,
-                observables: observables2[idx], // TODO
-                settings: settings2
+        let waveFct: Array<QuantumSystem> = psi.map((values: Array<[number, number]>, idx: number) => {
+            const observables: ExpectationValues = observables2[idx];
+            // TODO here we'd also like to add psiP, if available
+            const qmSystem: QuantumSystem = {
+                time: idx * settings2.deltaT,
+                psi: {...{
+                    representation: "x",
+                    basePoints: x,
+                    values: values,
+                }, ...observables}
             };
-            return slice;
+            return qmSystem;
         });
-        let waveFctTilde: Array<Timeslice>|undefined = undefined;
-        let obsQm: Array<ExpectationValues>|undefined = undefined;
-        // outer index: time, inner index: x
-        let potential2: Array<Array<number>>|undefined = undefined;
-        if (result[3] && result[4]) {
+        if (result[3] && result[4] && classicalResults) {
             const x2 = result[3][0];
             const psiTilde = result[3][1];
-            obsQm = result[4];
-            waveFctTilde = psiTilde.map((values: Array<[number, number]>, idx: number) => {
-                const slice: Timeslice = {
-                    x: x2,
-                    waveFunction: values,
-                    observables: obsQm[idx],
-                    settings: settings2
-                };
-                return slice;
-            });
+            if (psiTilde.length !== classicalResults.timesteps.length 
+                    || psiTilde.length !== waveFct.length) {
+                const msg = "Incompatible lengths between wave functions and/or trajectory"
+                reporter.error(msg);
+                throw new Error(msg);
+            }
+            const obsQm: Array<ExpectationValues> = result[4];
+            // outer index: time, inner index: x
+            let potential2: Array<Array<number>>|undefined = undefined;
             if (result[5]) {
                 // keep only real part
                 potential2 = result[5][1].map(timeslice => timeslice.map(complex => complex[0]));
             }
+            const waveFctTilde: Array<QuantumSystemResidual> = psiTilde.map((values: Array<[number, number]>, idx: number) => {
+                const psiResults = waveFct[idx];
+                const observablesPhi: ExpectationValues = obsQm[idx];
+                const systemPhi: {phi: WaveFunctionData; phiP?: WaveFunctionData, phiPotential?: Array<number>;} = {   
+                    phi: {...{
+                        representation: "x",
+                        basePoints: x2,
+                        values: values
+                    }, ...observablesPhi},
+                    // TODO phiP
+                    phiPotential: potential2 ? potential2[idx] : undefined
+                };
+                const phaseSpaceResult: ClassicalSystem = classicalResults.timesteps[idx];
+                const overallResult: QuantumSystemResidual = {...psiResults, ...systemPhi, ...phaseSpaceResult};
+                return overallResult;
+            });
+            waveFct = waveFctTilde;
         }
         /*
-        if (psi.length !== observables2.length)
-            throw new Error("Length of observables file does not match length of wave function (incompatible number of timesteps)");
-        */ // TODO for now ignore observables
+            readonly id: string;
+            readonly timesteps: Array<QuantumSystem>;
+            readonly x: Array<number>;
+            readonly p?: Array<number>;
+            readonly settingsQm: QuantumSettings;
+        */
+
         return {
             id: id,
             x: x,
-            timesteps: psi.map((_, idx) => idx * (settings2.deltaT || 1)),
-            waveFunction: waveFct,
-            observables: observables2,
-            settings: settings2,
-            waveFunctionTilde: waveFctTilde,
-            observablesTilde: obsQm,
-            potential: potential2
+            /* p: ... TODO */
+            timesteps: waveFct,
+            settingsQm: settings2
         };
     }
 
 }
 
-
-// TODO pass this kind of object to the file upload methods above
 interface ProgressSink {
     started(): void;
     progress(done: number, total: number): void;
@@ -572,33 +591,37 @@ export class FileUpload extends HTMLElement {
         const settings: File|undefined = files.find(fl => fl.name.toLowerCase() === "settings.json");
         const points: File|undefined = files.find(fl => fl.name.toLowerCase() === "points.csv");
         // the three below are present for calculations in the residual rep only, besides all the other files
-        const psiTilde: File|undefined = files.find(fl => fl.name.toLowerCase() === "psitilde.csv");
+        const psiTilde: File|undefined = files.find(fl => fl.name.toLowerCase() === "psitilde.csv" || fl.name.toLowerCase() === "phi.csv");
         const potential: File|undefined = files.find(fl => fl.name.toLowerCase() === "v_t.csv");
         const observablesQm: File|undefined = files.find(fl => fl.name.toLowerCase() === "observables.csv");
         const isQuantum: boolean = !!psi && !!observables;
         const isClassical: boolean = !!points;
         if ((!isQuantum && !isClassical) || !settings) {
             console.log("Files missing");
+            // TODO consume those errors
+            this.dispatchEvent(new CustomEvent<Error>("error", {detail: new Error("Files missing")}));
             return;
         }
         const id: string = this.#datasetIdField.value;
         if (!id) {
             console.log("Id not set");
+            this.dispatchEvent(new CustomEvent<Error>("error", {detail: new Error("Id not set")}));
             return;
         }
         this.#uploadRunning = true;
-        const reporter: AggregatingReporter = new AggregatingReporter(this.#progressReporter);
         try {
-            const resultsQm = isQuantum ? await FileImport.parseQmFiles(reporter, id, psi, observables, settings, psiTilde, observablesQm, potential) : undefined;
+            const reporter: AggregatingReporter = new AggregatingReporter(this.#progressReporter);
             const resultsClassical = isClassical ? await FileImport.parseClassicalFiles(reporter, id, points, settings) : undefined;
+            const resultsQm = isQuantum ? await FileImport.parseQmFiles(reporter, id, psi, observables, settings, psiTilde, observablesQm, potential, resultsClassical) : undefined;
             const results = isQuantum && isClassical ? {...resultsQm, classicalTrajectory: resultsClassical} : isQuantum ? resultsQm : resultsClassical;
             // TODO consume the event
-            this.dispatchEvent(new CustomEvent<SimulationSystem>("newResults", {detail: results}));
+            this.dispatchEvent(new CustomEvent<SimulationResult>("upload", {detail: results}));
 
             //this.#simulationController.addResultSet(results); // TODO
             //hideShowMenu(false); // TODO
-        } catch(e) {
+        } catch(e) {  // TODO dispatch event as well?
             console.error("Failed to upload results", e);  // TODO show to user
+            this.dispatchEvent(new CustomEvent<Error>("error", {detail: new Error("Failed to upload results " + e)}));
         } finally {
             this.#uploadRunning = false;
         }
@@ -608,4 +631,3 @@ export class FileUpload extends HTMLElement {
 
 
 }
-
