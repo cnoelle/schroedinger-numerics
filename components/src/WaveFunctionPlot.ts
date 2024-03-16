@@ -1,5 +1,4 @@
-import * as uPlot from "uplot";
-import { AlignedData, Options, Series } from "uplot";
+import uPlot, { AlignedData, Options, Series } from "uplot";
 //import "../node_modules/uplot/dist/uPlot.min.css";
 //import { ColorPalette } from "./colorPalette.js";
 import { JsUtils } from "./JsUtils.js";
@@ -25,7 +24,6 @@ export class WaveFunctionPlot extends HTMLElement implements QmWidget {
         if (tag !== WaveFunctionPlot._tag) {
             customElements.define(tag, WaveFunctionPlot);
             WaveFunctionPlot._tag = tag;
-            JsUtils.loadLibrary("./assets/css/uPlot.min.css");
         }
     }
 
@@ -162,9 +160,13 @@ export class WaveFunctionPlot extends HTMLElement implements QmWidget {
         }
     }
 
+    readonly #element: HTMLElement;
+
     constructor() {
         super();
-        
+        this.attachShadow({mode: "open"});
+        this.#element = JsUtils.createElement("div", {parent: this.shadowRoot});
+        JsUtils.loadCss("./assets/css/uPlot.min.css", {parent: this.#element});
         // for debugging  // TODO elsewhere
         /*
         (window as any).sch = (window as any).sch || {};
@@ -208,7 +210,7 @@ export class WaveFunctionPlot extends HTMLElement implements QmWidget {
             const data: AlignedData = [
                 [], []
             ] as any;
-            this.#chart = new uPlot(options, data, this);
+            this.#chart = new uPlot(options, data, this.#element);
         } else {
             // TODO adapt existing
         }
@@ -329,9 +331,14 @@ export class WaveFunctionPlot extends HTMLElement implements QmWidget {
         state = state.filter(s => this.#waveFunctionType === "phi" ? !!s.phi : !!s.psi);
         if (!(state.length > 0) || !this.#chart)
             return;
+        const coords: Array<Array<number>> = this.#representation === "p" ?
+            // @ts-ignore
+            state.map(s => this.#waveFunctionType === "phi" ? s.phiP.basePoints : s.psiP.basePoints) :
+            // @ts-ignore
+            state.map(s => this.#waveFunctionType === "phi" ? s.phi.basePoints : s.psi.basePoints);
         // @ts-ignore
-        const coordinates: Array<Coordinates> = state.map(s => this.#waveFunctionType === "phi" ? s.phiCoordinates : s.psiCoordinates);
-        const coords: Array<Array<number>> = coordinates.map(c => this.#representation === "p" ? c.p : c.x);
+        //const coordinates: Array<Coordinates> = state.map(s => this.#waveFunctionType === "phi" ? s.phiCoordinates : s.psiCoordinates);
+        //const coords: Array<Array<number>> = coordinates.map(c => this.#representation === "p" ? c.p : c.x);
         const domain: [Array<number>, boolean] = JsUtils.mergeArrays(coords);
         const allDomainsEqual: boolean = domain[1];
         const data: AlignedData = [domain[0]]; //[slices[0].x];

@@ -11,7 +11,7 @@ import { ClassicalSettings, QmWidget, QuantumSettings, SimulationParameters, Sim
 export class SimulationController implements SimulationStateListener {
 
     readonly #controlsListener: EventListener;
-    #currentResults: Array<SimulationResult>|undefined = undefined;
+    #currentResults: Array<SimulationResult> = [];
     #activeSimulation: SimulationRun|undefined = undefined;
     //#currentResult: SimulationResult|undefined = undefined;
 
@@ -125,6 +125,15 @@ export class SimulationController implements SimulationStateListener {
 
     simulationState(): SimulationState {
         return this.#simulationState;
+    }
+
+    widgets(): Array<QmWidget> {
+        const w = this._widgets;
+        return Array.isArray(w) ? w : w();
+    }
+
+    results(): Array<SimulationResult> {
+        return [...this.#currentResults];
     }
 
     close() {

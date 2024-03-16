@@ -28,6 +28,8 @@ export class DemoMenu {
             }
             */
         };
+        hideMenu.addEventListener("click", () => hideShowMenu(false));
+        showMenu.addEventListener("click", () => hideShowMenu(true));
     
     }
 

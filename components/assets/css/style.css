@@ -11,3 +11,26 @@
     margin-left: 350px;
 }
 
+.menu-close {
+    position: absolute;
+    top: 0px;
+    right: 2.5em;
+    opacity: 0.6;
+}
+
+.menu-open {
+    opacity: 0.6;
+}
+
+.control-icon {
+    cursor: pointer;
+}
+
+.control-icon-disabled {
+    opacity: 0.5;
+}
+
+.control-icon-disabled:hover {
+    cursor: auto;
+}
+

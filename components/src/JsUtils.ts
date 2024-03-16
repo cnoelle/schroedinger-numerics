@@ -98,17 +98,21 @@ export class JsUtils {
         return element;
     }
 
-    public static loadLibrary(path: string /*, type: "css" */): Promise<HTMLLinkElement> {
-        const existing: Element|undefined = Array.from(document.head.children)
-            .find(child => child.tagName === "link" && (child as HTMLLinkElement).href === path);
-        if (existing !== undefined)
-            return Promise.resolve(existing as HTMLLinkElement);
+    public static loadCss(path: string, options?: { parent?: Element, skipExistingCheck?: boolean }): Promise<HTMLLinkElement> {
+        const parent = options?.parent || document.head;
+        if (!options?.skipExistingCheck) {
+            const existing: Element|undefined = Array.from(parent.children)
+                .find(child => child.tagName === "link" && (child as HTMLLinkElement).href === path);
+            if (existing !== undefined)
+                return Promise.resolve(existing as HTMLLinkElement);
+        }
         return new Promise((resolve, reject) => {
             const link = document.createElement("link");
+            link.rel="stylesheet";
             link.href = path;
             link.onload = evt => resolve(evt.target as HTMLLinkElement);
             link.onerror = reject; 
-            document.head.appendChild(link);       
+            parent.appendChild(link);       
         });
     }
 

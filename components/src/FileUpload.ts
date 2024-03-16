@@ -272,17 +272,40 @@ class FileImport {
         }
     }
 
+    private static _potentialRange(settings0: Partial<QuantumSettings>, wf?: QuantumSystem): [number, number]|undefined {
+        let V = settings0.V;
+        if (V === undefined) {
+            if (settings0.V_coefficients && wf) {
+                    const fact = (num: number): number => {
+                        if (num === 0 || num === 1) 
+                            return 1;
+                        let result = num;
+                        while (num > 1) { 
+                        num--;
+                        result *= num;
+                        }
+                        return result;
+                    };
+                    V = wf.psi.basePoints.map(x => 
+                        settings0.V_coefficients.map((C, idx) => C/fact(idx) * Math.pow(x, idx)).reduce((a,b) => a+b, 0));
+            } else {
+                return undefined;
+            }
+        }
+        return [Math.min(...V), Math.max(...V)];
+    }
+
     private static async _parseQmFiles0(id: string, reporter: AggregatingReporter,  waveFunction: File, observables: File, settings: File,
             psiTilde?: File, observablesQm?: File, potential?: File, classicalResults?: SimulationResultClassical): Promise<SimulationResultQm> {
         const waveFunctionPromise: Promise<[Array<number>, Array<Array<[number, number]>>]> = FileImport._parseWaveFunctionFile(waveFunction, reporter);
         const observablesPromise: Promise<Array<ExpectationValues>> = FileImport._parseObservablesFile(observables, reporter);
-        const settingsPromise: Promise<QuantumSettings> = new Promise((resolve, reject) => {
+        const settingsPromise: Promise<Omit<QuantumSettings, "potentialValueRange">> = new Promise((resolve, reject) => {
             const reader = new FileReader();
             const settingsReporter = reporter.add();
             reader.onload = (event: ProgressEvent<FileReader>) => {
                 const result: string = event.target.result as string;
                 try {
-                    const result1 = JSON.parse(result);
+                    const result1: Omit<QuantumSettings, "potentialValueRange"> = JSON.parse(result);
                     settingsReporter.isDone();
                     resolve(result1);
                 } catch (e) {
@@ -299,12 +322,12 @@ class FileImport {
         const x = result[0][0];
         const psi = result[0][1];
         const observables2 = result[1];
-        const settings2: QuantumSettings = result[2];
+        const settings1a: Omit<QuantumSettings, "potentialValueRange"> = result[2];
         let waveFct: Array<QuantumSystem> = psi.map((values: Array<[number, number]>, idx: number) => {
             const observables: ExpectationValues = observables2[idx];
             // TODO here we'd also like to add psiP, if available
             const qmSystem: QuantumSystem = {
-                time: idx * settings2.deltaT,
+                time: idx * settings1a.deltaT!,
                 psi: {...{
                     representation: "x",
                     basePoints: x,
@@ -313,6 +336,8 @@ class FileImport {
             };
             return qmSystem;
         });
+        const potRange: [number, number]|undefined = FileImport._potentialRange(settings1a, waveFct[0]);
+        const settings2: QuantumSettings = {...settings1a, potentialValueRange: potRange};
         if (result[3] && result[4] && classicalResults) {
             const x2 = result[3][0];
             const psiTilde = result[3][1];
@@ -354,7 +379,6 @@ class FileImport {
             readonly p?: Array<number>;
             readonly settingsQm: QuantumSettings;
         */
-
         return {
             id: id,
             x: x,
@@ -573,7 +597,7 @@ export class FileUpload extends HTMLElement {
             fileUpload.title = enable ? "Start upload" : "Select files first";
         };
         fileSelector.addEventListener("change", () => enableFileUpload(fileSelector.files.length > 0));
-        fileUpload.addEventListener("click", () => this._upload.bind(this));
+        fileUpload.addEventListener("click", this._upload.bind(this));
     }   
 
     connectedCallback() {

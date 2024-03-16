@@ -5,6 +5,7 @@
         "lib": ["ESNext", "DOM"],
         "module": "ESNext",
         "target": "ESNext",
+        "allowSyntheticDefaultImports": true,
         "declaration": false,
         "moduleResolution": "node",
         "noImplicitAny": true,

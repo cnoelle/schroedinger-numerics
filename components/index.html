@@ -18,7 +18,7 @@
         <dataesets-grid></dataesets-grid>
     </div>
     <div class="menu-margin">
-        <div id="menuShow" class="menu-open" hidden="hidden">
+        <div class="menu-open" hidden="hidden">
             <img src="assets/icons/east_black_24dp.svg" class="control-icon" title="Open menu">
         </div>
         <div>
@@ -45,8 +45,8 @@
         const controls = document.querySelector("simulation-controls");
         const displayWidgets = () => {
             return [
-                ...[document.querySelectorAll("wavefunction-plot")],
-                ...[document.querySelectorAll("phase-space-density")]
+                ...Array.from(document.querySelectorAll("wavefunction-plot")),
+                ...Array.from(document.querySelectorAll("phase-space-density"))
             ]
         };
         const controller = new SimulationController(controls, upload, displayWidgets, 
@@ -58,7 +58,7 @@
 
         import {DemoMenu} from "./DemoMenu.js";
         new DemoMenu(document.querySelector(".main-menu"), document.querySelector(".menu-margin"),
-                document.querySelector(".menu-close"), document.querySelector(".menu-show"));
+                document.querySelector(".menu-close"), document.querySelector(".menu-open"));
 
     </script>
 </body>
