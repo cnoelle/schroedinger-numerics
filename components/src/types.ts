@@ -87,6 +87,11 @@ export interface SimulationResultQmResidual extends SimulationResultQm, Simulati
 
 export type SimulationResult = SimulationResultClassical|SimulationResultQm|SimulationResultQmResidual;
 
+export function simulationSettings(result: SimulationResult): SimulationSettings {
+    return (result as SimulationResultQm).settingsQm ? (result as SimulationResultQm).settingsQm 
+        :  (result as SimulationResultClassical).settingsClassical;
+}
+
 /**
  * Either the coefficients of a polynomial, V0 + V1*x + 1/2 V2*x^2 + 1/6 V3*x^3 + ...,
  * or the sampled values at specified base points
@@ -102,18 +107,20 @@ export interface Scheme {
     readonly id: string;
 }
 
-export type QuantumSettings = {
-    readonly type: "qm";
-    readonly hbar: number;
+export interface SimulationSettings {
+    readonly type: "qm"|"classical";
     readonly deltaT: number;
     readonly scheme: Scheme;
+}
+
+export type QuantumSettings = SimulationSettings & {
+    readonly type: "qm";
+    readonly hbar: number;
     readonly deltaX?: number; 
 } & Potential;
 
-export type ClassicalSettings = {
+export type ClassicalSettings = SimulationSettings & {
     readonly type: "classical";
-    readonly deltaT: number;
-    readonly scheme: Scheme;
 } & Potential;
 
 /**

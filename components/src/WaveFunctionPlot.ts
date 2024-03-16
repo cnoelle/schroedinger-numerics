@@ -350,6 +350,7 @@ export class WaveFunctionPlot extends HTMLElement implements QmWidget {
                 const img: Array<number> = waveFunction.values.map(xy => Math.abs(xy[1]));
                 //const data: AlignedData = [x, abs, real, img, slice.settings.V];
                 data.push(...[abs, real, img]);
+                // @ts-ignore
                 if (!potentialAdded && (this.#waveFunctionType === "psi" && result.psiPotential || 
                         // @ts-ignore
                         this.#waveFunctionType === "phi" && result.phiPotential)) {
@@ -375,6 +376,7 @@ export class WaveFunctionPlot extends HTMLElement implements QmWidget {
                 const real: Array<number> = ev(xy => Math.abs(xy[0]));
                 const img: Array<number> = ev(xy => Math.abs(xy[1]));
                 data.push(...[abs, real, img]);
+                // @ts-ignore
                 if (!potentialAdded && (this.#waveFunctionType === "psi" && result.psiPotential || 
                         // @ts-ignore
                         this.#waveFunctionType === "phi" && result.phiPotential)) {

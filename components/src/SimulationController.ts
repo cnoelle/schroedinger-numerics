@@ -1,35 +1,33 @@
 import { ColorRgba } from "./Color.js";
 import { FileUpload } from "./FileImport.js";
 import { SimulationControls } from "./SimulationControls.js";
-import { ClassicalSettings, QmWidget, QuantumSettings, SimulationParameters, SimulationResult, SimulationResultClassical, SimulationResultQm, SimulationState, SimulationStateListener } from "./types.js";
+import { ClassicalSettings, QmWidget, QuantumSettings, SimulationParameters, SimulationResult, SimulationResultClassical, SimulationResultQm, SimulationSettings, SimulationState, SimulationStateListener, SimulationSystem, simulationSettings } from "./types.js";
 
 /**
- * TODO adapt from old SimulationController
  * TODO support multiple uploads 
  * The glue code between the different widgets
  */
-export class SimulationController {
+export class SimulationController implements SimulationStateListener {
 
-    #currentResult: SimulationResult|undefined = undefined;
+    readonly #controlsListener: EventListener;
+    #currentResults: Array<SimulationResult>|undefined = undefined;
+    #activeSimulation: SimulationRun|undefined = undefined;
+    //#currentResult: SimulationResult|undefined = undefined;
 
     // state
-    
+    #simulationState: SimulationState = SimulationState.UNSET;
 
     readonly #listener = (event: CustomEvent<SimulationResult>) => {
         const result: SimulationResult = event.detail;
-        const isClassical: boolean = !!(result as SimulationResultClassical).settingsClassical;
-        const isQuantum: boolean = !!(result as SimulationResultQm).settingsQm;
-        this.#currentResult = result;
         const widgets0 = this._widgets;
-        const params0: QuantumSettings|ClassicalSettings = 
-            (isClassical && isQuantum) ? {...(result as SimulationResultClassical).settingsClassical, ...(result as SimulationResultQm).settingsQm}
-                : isQuantum ? (result as SimulationResultQm).settingsQm : (result as SimulationResultClassical).settingsClassical;
-        // TODO color
-        const params: SimulationParameters = {...params0, id: result.id, color: new ColorRgba([255,0,0,1]) };
         const widgets = Array.isArray(widgets0) ? widgets0 : widgets0();
+        this._restart([result]);
+        const params0: SimulationSettings = simulationSettings(result);
+        // TODO color etc
+        const params: SimulationParameters = {...params0 as any, id: result.id, color: new ColorRgba([255,0,0,1]) };
         widgets.forEach(w => w.initialize([params]));
         this._ctrl.onProgress(0);
-        this._ctrl.stateChanged(SimulationState.INITIALIZED);
+        this.stateChanged(SimulationState.INITIALIZED);
     }
 
     constructor(
@@ -62,47 +60,73 @@ export class SimulationController {
                 // ?
             }
         }); 
+        this.#controlsListener = controlsListener;
         SimulationControls.EVENTS.forEach(event => _ctrl.addEventListener(event, controlsListener));
 
     }
 
+    onProgress(fraction: number) {
+        this._ctrl.onProgress(fraction);
+    }
+
+    stateChanged(state: SimulationState) {
+        this.#simulationState = state;
+        this._ctrl.stateChanged(state);
+    }
+
     private _startSimulation() {
-        if (!this.#currentResult)
-            return;
-        // TODO
+        if (this.#activeSimulation) {        
+            this.#activeSimulation?.start();
+            this.stateChanged(SimulationState.RUNNING);
+        }
     }
 
     private _pauseSimulation() {
-        if (!this.#currentResult)
-            return;
-        // TODO
+        if (this.#activeSimulation) {
+            this.#activeSimulation?.pause();
+            this.stateChanged(SimulationState.PAUSED);
+        }
     }
 
     private _stopSimulation() {
-        if (!this.#currentResult)
-            return;
-        // TODO
+        this.#activeSimulation?.pause();
+        this._resetSimulation();
     }
 
-    private _resetSimulation(fraction: number) {
-        if (!this.#currentResult)
-            return;
-        // TODO
+    private _resetSimulation(fraction?: number) {
+        if (this.#activeSimulation) {
+            this.#activeSimulation?.reset(fraction); // ?
+            if (fraction === undefined)
+                this.stateChanged(SimulationState.INITIALIZED);
+        }
     }
 
     private _step(backward?: boolean) {
-        if (!this.#currentResult)
-            return;
-        // TODO
+        this.#activeSimulation.advance(backward ? - 1 : 1);
     }
 
-    currentResult(): SimulationResult|undefined {
-        return this.#currentResult;
+
+    private _restart(results: Array<SimulationResult>) {
+        this.#currentResults = results;
+        this.#activeSimulation?.pause();
+        if (results.length === 0) {
+            this.stateChanged(SimulationState.UNSET);
+            return;
+        }
+        const widgets0 = this._widgets;
+        const widgets = Array.isArray(widgets0) ? widgets0 : widgets0();
+        this.#activeSimulation = new SimulationRun(results, widgets, 10_000, this); // TODO duration
+        this.#activeSimulation.start(1);
+        this.stateChanged(SimulationState.INITIALIZED);
+    }
+
+    simulationState(): SimulationState {
+        return this.#simulationState;
     }
 
     close() {
         this._fileUpload.removeEventListener("upload", this.#listener);
-        SimulationControls.EVENTS.forEach(event => this._ctrl.removeEventListener(event, controlsListener));
+        SimulationControls.EVENTS.forEach(event => this._ctrl.removeEventListener(event, this.#controlsListener));
     }
 
 
@@ -110,16 +134,19 @@ export class SimulationController {
 
 class SimulationRun {
 
-    readonly #numQmStates: number;
+    readonly #settings: Array<SimulationSettings>;
+    readonly #deltaTs: Array<number>;
+    readonly #steps: Array<number>;
+    readonly #timeDurations: Array<number>;
     readonly #deltaT: number;
-    readonly #hasTildePotentials: boolean;
-    readonly #steps: number;
 
     //readonly #count: number;
     //#currentIdx: number;
     readonly #timeDuration: number;   // simulation time
-    #passedTime: number;              // simulation time
+    #passedTime: number|undefined;              // simulation time
     // first indices belong to quantum states, last ones to classical
+
+    // indices order corresponds to this._results order
     #indices: Array<number>|undefined;
 
     #timer: number;
@@ -129,14 +156,6 @@ class SimulationRun {
     readonly #callback = (timestamp: number, frames?: number) => {
         if (this.#startTime === undefined) {
             this.#startTime = timestamp;
-            /*
-            if (this.#currentIdx !== undefined) {
-                const fraction: number = this.#currentIdx / this.#count;
-                if (fraction >= 1) // TODO?
-                    return;
-                const passedTime: number = fraction * this._durationMillis;
-                this.#startTime = this.#startTime - passedTime;
-            }*/
             if (this.#passedTime !== undefined && this.#indices !== undefined) {
                 const fraction: number = this.#passedTime / this.#timeDuration;
                 if (fraction >= 1) {// TODO?
@@ -173,9 +192,12 @@ class SimulationRun {
             */
             this.#indices = indices;
             this.#passedTime = time;
+            this._dispatch(indices);
+            /*
             const slices: Array<[Timeslice, Timeslice|undefined]> = this._qmResults.map((r, idx) => [r.waveFunction[indices[idx]], r.waveFunctionTilde ? r.waveFunctionTilde[indices[idx]] : undefined]);
             const points: Array<Point> = this._classicalResults.map((r, idx) => r.points[indices[idx + this.#numQmStates]]);
             this._listener.next(slices, points, this.#hasTildePotentials ? this._qmResults.map((r, idx) => r.potential ? r.potential[indices[idx]] : undefined) : undefined);
+            */
             this._stateListener.onProgress(fraction);   
         }
         const newFrames: number|undefined = frames ? frames - 1 : undefined;
@@ -187,24 +209,33 @@ class SimulationRun {
         // also applies to the pause function
     }
 
-
     constructor(
-        private readonly _qmResults: Array<SimulationResultQm>,
-        private readonly _classicalResults: Array<SimulationResultClassical>,
+        private readonly _results: Array<SimulationResult>,
+        private readonly _widgets: Array<QmWidget>,
         private readonly _durationMillis: number,
-        private readonly _listener: SimulationListener,
         private readonly _stateListener: SimulationStateListener
     ) {
-        //this.#count = this._result.timesteps.length;
+        this.#settings = _results.map(r => simulationSettings(r));
+        this.#deltaTs = this.#settings.map(s => s.deltaT || 1);
+        this.#deltaT = Math.min(...this.#deltaTs);
+        this.#steps = _results.map(r => Math.max(r.timesteps.length, 1));
+        this.#timeDurations = this.#deltaTs.map((s, idx) => s * this.#steps[idx]);
+        this.#timeDuration = Math.max(...this.#timeDurations);
+
+        /*
         const deltaTTimestamps: Array<[number, number]> = [..._qmResults, ..._classicalResults].map(r => [r.settings.deltaT || 1, Math.max(1, r.timesteps.length-1)]);
         this.#deltaT = Math.min(...deltaTTimestamps.map(arr => arr[0]));
-        this.#steps = Math.max(...deltaTTimestamps.map(a => a[1]));
-        //this.#count = Math.round(Math.max(..._results.map(r => r.settings.deltaT / deltaT * r.timesteps.length)));
+        this.#steps0 = Math.max(...deltaTTimestamps.map(a => a[1]));
         this.#timeDuration = Math.max(...deltaTTimestamps.map(arr => arr[0] * arr[1]));
         this.#numQmStates = _qmResults.length;
         this.#hasTildePotentials = this._qmResults.findIndex(r => r.potential) >= 0;
+        */
     }
 
+    private _dispatch(indices: Array<number>) {
+        const frames: Array<SimulationSystem>  = this._results.map((r, idx) => r.timesteps[indices[idx]]);
+        this._widgets.forEach(w => w.set(frames));
+    }
 
     start(frames?: number) {
         window.cancelAnimationFrame(this.#timer); // avoid multiple concurrent runs
@@ -267,24 +298,23 @@ class SimulationRun {
     }
 
     steps(): number {
-        return this.#steps;
+        return Math.max(...this.#steps);
     }
 
-    getFrameIndices(): {passedTime: number, frameIndices: Record<string, number>} {
+    getFrameIndices(): {passedTime: number|undefined, frameIndices: Record<string, number>|undefined} {
         return {
             passedTime: this.#passedTime,
             frameIndices: this.#indices !== undefined ? 
-                Object.fromEntries([...this._qmResults, ...this._classicalResults].map((run, idx) => [
-                    run.id, this.#indices[idx]
-                ])) : undefined
+                Object.fromEntries(this._results.map((run, idx) => [run.id, this.#indices[idx]])) : undefined
         };
     }
 
     private _getIndices(time: number): Array<number> {
-        return [...this._qmResults, ...this._classicalResults].map(r => {
-            const larger: number = r.timesteps.findIndex(step => step > time);
-            const previous: number = larger > 0 ? larger-1 : larger === 0 ? larger : r.timesteps.length-1;
-            return previous;
+        return this._results.map((r, idx) => {
+            let lowerIdx = Math.floor(time / this.#deltaTs[idx]);
+            if (lowerIdx > this.#steps[idx]-1)
+                lowerIdx = this.#steps[idx] - 1;
+            return lowerIdx;
         });
     }
 
