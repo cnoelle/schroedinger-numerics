@@ -1,7 +1,6 @@
 import * as uPlot from "uplot";
 import { AlignedData, Options, Series } from "uplot";
-// TODO not working in production mode?
-import "../node_modules/uplot/dist/uPlot.min.css";
+//import "../node_modules/uplot/dist/uPlot.min.css";
 //import { ColorPalette } from "./colorPalette.js";
 import { JsUtils } from "./JsUtils.js";
 import { ClassicalSettings, Coordinates, QmWidget, QuantumSettings, QuantumSystem, QuantumSystemResidual, SimulationParameters, SimulationSystem, WaveFunctionData } from "./types.js";
@@ -26,6 +25,7 @@ export class WaveFunctionPlot extends HTMLElement implements QmWidget {
         if (tag !== WaveFunctionPlot._tag) {
             customElements.define(tag, WaveFunctionPlot);
             WaveFunctionPlot._tag = tag;
+            JsUtils.loadLibrary("./assets/css/uPlot.min.css");
         }
     }
 

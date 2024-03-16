@@ -529,6 +529,7 @@ export class FileUpload extends HTMLElement {
         const style: HTMLStyleElement = document.createElement("style");
         //style.textContent = ":host { position: relative; display: block; }";
         style.textContent = ".upload-dataset { display: flex; column-gap: 1em; margin-bottom: 1em; }";
+        this.attachShadow({mode: "open"});
         this.shadowRoot.appendChild(style); // TODO do we first need to attach a new shadow root?
         const uploadDataset = JsUtils.createElement("div", {classes: ["upload-dataset"], parent: this.shadowRoot});
         JsUtils.createElement("div", {text: "Dataset", parent: uploadDataset});

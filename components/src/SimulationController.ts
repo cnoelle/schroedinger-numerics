@@ -1,5 +1,5 @@
 import { ColorRgba } from "./Color.js";
-import { FileUpload } from "./FileImport.js";
+import { FileUpload } from "./FileUpload.js";
 import { SimulationControls } from "./SimulationControls.js";
 import { ClassicalSettings, QmWidget, QuantumSettings, SimulationParameters, SimulationResult, SimulationResultClassical, SimulationResultQm, SimulationSettings, SimulationState, SimulationStateListener, SimulationSystem, simulationSettings } from "./types.js";
 
@@ -39,22 +39,22 @@ export class SimulationController implements SimulationStateListener {
             const type = event.type;
             switch (type) {
             case "start":
-                this._startSimulation();
+                this.start();
                 break;
             case "pause":
-                this._pauseSimulation();
+                this.pause();
                 break;
             case "stop":
-                this._stopSimulation();
+                this.stop();
                 break;
             case "reset":
                 const fraction: number = (event as CustomEvent<{fraction: number}>).detail.fraction;
-                this._resetSimulation(fraction);
+                this.reset(fraction);
                 break;
             case "stepForward":
             case "stepBackward":
                 const backward: boolean = type === "stepBackward";
-                this._step(backward);
+                this.step(backward);
                 break;
             default:
                 // ?
@@ -74,26 +74,26 @@ export class SimulationController implements SimulationStateListener {
         this._ctrl.stateChanged(state);
     }
 
-    private _startSimulation() {
+    start() {
         if (this.#activeSimulation) {        
             this.#activeSimulation?.start();
             this.stateChanged(SimulationState.RUNNING);
         }
     }
-
-    private _pauseSimulation() {
+    
+    pause() {
         if (this.#activeSimulation) {
             this.#activeSimulation?.pause();
             this.stateChanged(SimulationState.PAUSED);
         }
     }
 
-    private _stopSimulation() {
+    stop() {
         this.#activeSimulation?.pause();
-        this._resetSimulation();
+        this.reset();
     }
 
-    private _resetSimulation(fraction?: number) {
+    reset(fraction?: number) {
         if (this.#activeSimulation) {
             this.#activeSimulation?.reset(fraction); // ?
             if (fraction === undefined)
@@ -101,7 +101,7 @@ export class SimulationController implements SimulationStateListener {
         }
     }
 
-    private _step(backward?: boolean) {
+    step(backward?: boolean) {
         this.#activeSimulation.advance(backward ? - 1 : 1);
     }
 

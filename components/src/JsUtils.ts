@@ -20,7 +20,7 @@ export class JsUtils {
         if (options?.title)
             el.title = options.title;
         if (options?.attributes)
-            options.attributes.forEach(([value, key]) => el.setAttribute(key, value));
+            options.attributes.forEach((value, key) => el.setAttribute(key, value));
         if (options?.text)
             el.innerText = options.text;
         else if (options?.html)
@@ -96,6 +96,20 @@ export class JsUtils {
         if (options?.parent)
             options.parent.appendChild(element);
         return element;
+    }
+
+    public static loadLibrary(path: string /*, type: "css" */): Promise<HTMLLinkElement> {
+        const existing: Element|undefined = Array.from(document.head.children)
+            .find(child => child.tagName === "link" && (child as HTMLLinkElement).href === path);
+        if (existing !== undefined)
+            return Promise.resolve(existing as HTMLLinkElement);
+        return new Promise((resolve, reject) => {
+            const link = document.createElement("link");
+            link.href = path;
+            link.onload = evt => resolve(evt.target as HTMLLinkElement);
+            link.onerror = reject; 
+            document.head.appendChild(link);       
+        });
     }
 
 }

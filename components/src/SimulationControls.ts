@@ -69,6 +69,7 @@ export class SimulationControls extends HTMLElement implements SimulationStateLi
 
     constructor() {
         super();
+        this.attachShadow({mode: "open"});
         // id required?
         const flex = JsUtils.createElement("div", {classes: ["controls"]});
         this.#play = JsUtils.createElement("img", {classes: ["control-icon"], title: "Play", 
@@ -80,7 +81,7 @@ export class SimulationControls extends HTMLElement implements SimulationStateLi
         this.#progress = JsUtils.createElement("progress", {classes: ["control-icon"], text: "0%", 
                 parent: JsUtils.createElement("div", {parent: flex}),
                 attributes: new Map([["min", "0"], ["max", "100"], ["value", "0"]])});
-        const durationParent = JsUtils.createElement("div", {classes: ["aligned-row left-margin"], 
+        const durationParent = JsUtils.createElement("div", {classes: ["aligned-row", "left-margin"], 
                 parent: JsUtils.createElement("div", {parent: flex}),});
         JsUtils.createElement("div", {parent: durationParent, text: "Seconds: "});    
         this.#duration = JsUtils.createElement("input", {classes: ["sim-duration-control"], parent: durationParent,

@@ -193,7 +193,7 @@ export class PhaseSpaceDensityWidget extends HTMLElement implements QmWidget {
         this.clear();
         let idx=-1;
         const quantumSystems: Array<QuantumSystem&{psiCoordinates: Coordinates}> = state
-            .filter(r => !!(r as {psiCoordinates: Coordinates}).psiCoordinates) as any;
+            .filter(r => !!(r as any as {psiCoordinates: Coordinates}).psiCoordinates) as any;
         let xMin, xMax, pMin, pMax;
         for (const result of quantumSystems) {
             idx++;

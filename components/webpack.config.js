@@ -3,8 +3,11 @@ import HtmlWebpackPlugin from "html-webpack-plugin";
 
 export default {
   entry: {
-    bundle: "./src/PhaseSpaceWidget.ts",
-    fileImport: "./src/FileImport.ts"
+    WaveFunctionPlot: "./src/WaveFunctionPlot.ts",
+    PhaseSpaceDensityWidget: "./src/PhaseSpaceDensityWidget.ts",
+    FileUpload: "./src/FileUpload.ts",
+    SimulationControls: "./src/SimulationControls.ts",
+    SimulationController: "./src/SimulationController.ts"
   },
   devtool: "inline-source-map",
   module: {
@@ -37,8 +40,14 @@ export default {
     outputModule: true
   },
   plugins: [
+    /*
+      new CopyPlugin({
+        patterns: [
+            { from: "./assets", to: "./assets" }
+        ]
+      }),*/
       new HtmlWebpackPlugin({
-          title: "Canvas zoom sample",
+          title: "Schrödinger numerics demo",
           template: "index.html",
           //inject: "body",
           inject: false,
@@ -47,7 +56,8 @@ export default {
   ],
   devServer: {
       static: [
-          { directory: path.resolve("./dist") }
+          { directory: path.resolve("./dist") },
+          { directory: path.resolve("./assets"), publicPath: "/assets" }
       ],
       compress: false,
       port: 8080,

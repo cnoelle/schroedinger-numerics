@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Phase space demo</title>
+</head>
+<body>
+    <h1>Phase space demo</h1>
+    <div>
+        <wf-upload></wf-upload>
+    </div>
+    <div>
+        <simulation-controls></simulation-controls>
+    </div>
+    <script type="module">
+        import { WaveFunctionPlot } from "./WaveFunctionPlot.js";
+        import { PhaseSpaceDensityWidget } from "./PhaseSpaceDensityWidget.js";
+        import { SimulationControls } from "./SimulationControls.js";
+        import { SimulationController } from "./SimulationController.js";
+        import { FileUpload } from "./FileUpload.js";
+
+        FileUpload.register();
+        SimulationControls.register();
+        WaveFunctionPlot.register();
+        PhaseSpaceDensityWidget.register();
+
+        const upload = document.querySelector("wf-upload");
+        const controls = document.querySelector("simulation-controls");
+        const displayWidgets = () => {
+            return [
+                ...[document.querySelectorAll("wavefunction-plot")],
+                ...[document.querySelectorAll("phase-space-density")]
+            ]
+        };
+        const controller = new SimulationController(controls, upload, displayWidgets);
+        // for debugging
+        window.sch = controller;
+    </script>
+</body>
