@@ -1,4 +1,5 @@
 import { ColorRgba } from "./Color.js";
+import { DatasetsGrid } from "./DatasetsGrid.js";
 import { FileUpload } from "./FileUpload.js";
 import { SimulationControls } from "./SimulationControls.js";
 import { ClassicalSettings, QmWidget, QuantumSettings, SimulationParameters, SimulationResult, SimulationResultClassical, SimulationResultQm, SimulationSettings, SimulationState, SimulationStateListener, SimulationSystem, simulationSettings } from "./types.js";
@@ -28,12 +29,14 @@ export class SimulationController implements SimulationStateListener {
         widgets.forEach(w => w.initialize([params]));
         this._ctrl.onProgress(0);
         this.stateChanged(SimulationState.INITIALIZED);
+        this._datasetGrid?.addResultDataset(result);
     }
 
     constructor(
             private readonly _ctrl: SimulationControls,
             private readonly _fileUpload: FileUpload, 
-            private readonly _widgets: Array<QmWidget>|(() => Array<QmWidget>)) {
+            private readonly _widgets: Array<QmWidget>|(() => Array<QmWidget>),
+            private readonly _datasetGrid?: DatasetsGrid) {
         _fileUpload.addEventListener("upload", this.#listener);  // bind to this?
         const controlsListener = ((event: Event) => {
             const type = event.type;

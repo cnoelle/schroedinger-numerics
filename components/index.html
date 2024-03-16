@@ -4,14 +4,25 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Phase space demo</title>
+    <link rel="stylesheet" href="assets/css/style.css">
 </head>
 <body>
     <h1>Phase space demo</h1>
-    <div>
+    <div id="menu" class="main-menu">
+        <div id="menuClose" class="menu-close">
+            <img src="assets/icons/west_black_24dp.svg" class="control-icon" title="Close menu">
+        </div>
+        <h2>Upload results</h2>
         <wf-upload></wf-upload>
+        <h2>Datasets</h2>
+        <dataesets-grid></dataesets-grid>
     </div>
-    <div>
-        <simulation-controls></simulation-controls>
+    <div class="menu-margin">
+        <div>
+            <simulation-controls></simulation-controls>
+        </div>
+        <wavefunction-plot></wavefunction-plot>
+        <phase-space-density></phase-space-density>
     </div>
     <script type="module">
         import { WaveFunctionPlot } from "./WaveFunctionPlot.js";
@@ -19,8 +30,10 @@
         import { SimulationControls } from "./SimulationControls.js";
         import { SimulationController } from "./SimulationController.js";
         import { FileUpload } from "./FileUpload.js";
+        import { DatasetsGrid } from "./DatasetsGrid.js";
 
         FileUpload.register();
+        DatasetsGrid.register();
         SimulationControls.register();
         WaveFunctionPlot.register();
         PhaseSpaceDensityWidget.register();
@@ -33,7 +46,8 @@
                 ...[document.querySelectorAll("phase-space-density")]
             ]
         };
-        const controller = new SimulationController(controls, upload, displayWidgets);
+        const controller = new SimulationController(controls, upload, displayWidgets, 
+                document.querySelector("datasets-grid"));
         // for debugging
         window.sch = controller;
     </script>

@@ -6,6 +6,7 @@ export default {
     WaveFunctionPlot: "./src/WaveFunctionPlot.ts",
     PhaseSpaceDensityWidget: "./src/PhaseSpaceDensityWidget.ts",
     FileUpload: "./src/FileUpload.ts",
+    DatasetsGrid: "./src/DatasetsGrid.ts",
     SimulationControls: "./src/SimulationControls.ts",
     SimulationController: "./src/SimulationController.ts"
   },

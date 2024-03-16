@@ -1,0 +1,13 @@
+.main-menu {
+    position: absolute;    
+    border-right: 1px solid black;
+    height: 100%;
+    max-width: 300px;
+    padding-right: 2em;
+}
+
+
+.menu-margin {
+    margin-left: 350px;
+}
+
