@@ -8,8 +8,8 @@
 </head>
 <body>
     <h1>Phase space demo</h1>
-    <div id="menu" class="main-menu">
-        <div id="menuClose" class="menu-close">
+    <div class="main-menu">
+        <div class="menu-close">
             <img src="assets/icons/west_black_24dp.svg" class="control-icon" title="Close menu">
         </div>
         <h2>Upload results</h2>
@@ -18,6 +18,9 @@
         <dataesets-grid></dataesets-grid>
     </div>
     <div class="menu-margin">
+        <div id="menuShow" class="menu-open" hidden="hidden">
+            <img src="assets/icons/east_black_24dp.svg" class="control-icon" title="Open menu">
+        </div>
         <div>
             <simulation-controls></simulation-controls>
         </div>
@@ -50,5 +53,12 @@
                 document.querySelector("datasets-grid"));
         // for debugging
         window.sch = controller;
+
+        //  menu
+
+        import {DemoMenu} from "./DemoMenu.js";
+        new DemoMenu(document.querySelector(".main-menu"), document.querySelector(".menu-margin"),
+                document.querySelector(".menu-close"), document.querySelector(".menu-show"));
+
     </script>
 </body>

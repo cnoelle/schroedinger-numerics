@@ -8,7 +8,8 @@ export default {
     FileUpload: "./src/FileUpload.ts",
     DatasetsGrid: "./src/DatasetsGrid.ts",
     SimulationControls: "./src/SimulationControls.ts",
-    SimulationController: "./src/SimulationController.ts"
+    SimulationController: "./src/SimulationController.ts",
+    DemoMenu: "./src/DemoMenu.ts"
   },
   devtool: "inline-source-map",
   module: {
