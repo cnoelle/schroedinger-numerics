@@ -162,7 +162,7 @@ export class PhaseSpaceDensityWidget extends HTMLElement implements QmWidget {
 
     initialize(settings: Array<SimulationParameters>): void {
         // @ts-ignore
-        this.#currentParameters = settings.filter(s => s.type === "qm");
+        this.#currentParameters = settings.filter(s => s.type === "quantum");
         this.clear();
     }
 
@@ -190,10 +190,9 @@ export class PhaseSpaceDensityWidget extends HTMLElement implements QmWidget {
             this.#lastImageData = imageData;
         }
         const data: Uint8ClampedArray = imageData.data;
-        this.clear();
+        this.clear();  // FIXME required?
         let idx=-1;
-        const quantumSystems: Array<QuantumSystem&{psiCoordinates: Coordinates}> = state
-            .filter(r => !!(r as any as {psiCoordinates: Coordinates}).psiCoordinates) as any;
+        const quantumSystems: Array<QuantumSystem> = state.filter(r => !!(r as QuantumSystem).psi) as any;
         let xMin, xMax, pMin, pMax;
         for (const result of quantumSystems) {
             idx++;
@@ -219,16 +218,16 @@ export class PhaseSpaceDensityWidget extends HTMLElement implements QmWidget {
             const pAbsValues = wavefunctionP.values.map(v => v[0]*v[0] + v[1]*v[1]);
             const xAbsValues = wavefunctionX.values.map(v => v[0]*v[0] + v[1]*v[1]);
             const max = Math.max(...pAbsValues) * Math.max(...xAbsValues);
-            for (let idxP = 0; idxP < pLength; idxP++) {
-                const dataRowStartIdx = idxP * xLength * 4;
-                const valuesRowStartIdx = idxP * xLength;
-                const pAbs = pAbsValues[idxP];
-                for (let idxX=0; idxX<xLength; idxX++) {
-                    const xAbs = xAbsValues[idxX];
-                    const value = pAbs * xAbs;
-                    const fraction = value / max;
+            for (let idxX=0; idxX<width; idxX++) {
+                const psiXIdx = Math.round(idxX/(width-1) * (xLength-1));
+                const xVal = xAbsValues[psiXIdx];
+                for (let idxP=0; idxP<height; idxP++) {
+                    const psiPIdx = Math.round(idxP/(height-1) * (pLength-1));
+                    const pVal = pAbsValues[psiPIdx];
+                    const value = pVal * xVal;
+                    const fraction = value/max;
                     color[3] = fraction * alphaBase * 255;
-                    data.set(color, dataRowStartIdx + idxX *4);
+                    data.set(color, idxP * width * 4 + idxX * 4);
                 }
             }
             // XXX for multiple wave function this simply overrides the former results

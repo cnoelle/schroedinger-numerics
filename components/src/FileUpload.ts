@@ -264,10 +264,12 @@ class FileImport {
     }
 
     static async parseQmFiles(reporter: AggregatingReporter, id: string, waveFunction: File, observables: File, settings: File,
-                psiTilde?: File, observablesQm?: File, potential?: File, classicalResults?: SimulationResultClassical): Promise<SimulationResultQm> {
+                psiP?: File, psiTilde?: File, phiP?: File,
+                observablesQm?: File, potential?: File, classicalResults?: SimulationResultClassical): Promise<SimulationResultQm> {
         reporter.started();
         try {
-            return await FileImport._parseQmFiles0(id, reporter, waveFunction, observables, settings, psiTilde, observablesQm, potential, classicalResults);
+            return await FileImport._parseQmFiles0(id, reporter, waveFunction, observables, settings, psiP, 
+                psiTilde, phiP, observablesQm, potential, classicalResults);
         } catch (e) {
             reporter.error(e?.toString());
             throw e;
@@ -300,11 +302,13 @@ class FileImport {
     }
 
     private static async _parseQmFiles0(id: string, reporter: AggregatingReporter,  waveFunction: File, observables: File, settings: File,
-            psiTilde?: File, observablesQm?: File, potential?: File, classicalResults?: SimulationResultClassical): Promise<SimulationResultQm> {
+            psiP?: File, psiTilde?: File, phiP?: File, observablesQm?: File, potential?: File, classicalResults?: SimulationResultClassical): Promise<SimulationResultQm> {
         const settingsReporter = reporter.add();
         const waveFunctionPromise: Promise<[Array<number>, Array<Array<[number, number]>>]> = FileImport._parseWaveFunctionFile(waveFunction, reporter);
+        const psiPPromise: Promise<[Array<number>, Array<Array<[number, number]>>]> = FileImport._parseWaveFunctionFile(psiP, reporter);
         const observablesPromise: Promise<Array<ExpectationValues>> = FileImport._parseObservablesFile(observables, reporter);
         const psiTildePromise: Promise<[Array<number>, Array<Array<[number, number]>>]|undefined> = FileImport._parseWaveFunctionFile(psiTilde, reporter);
+        const phiPPromise: Promise<[Array<number>, Array<Array<[number, number]>>]|undefined> = FileImport._parseWaveFunctionFile(phiP, reporter);
         const observablesQmPromise: Promise<Array<ExpectationValues>|undefined> = FileImport._parseObservablesFile(observablesQm, reporter);
         const potentialPromise: Promise<[Array<number>, Array<Array<[number, number]>>]> = FileImport._parseWaveFunctionFile(potential, reporter, {headerPrefix: "V"});
         const settingsPromise: Promise<Omit<QuantumSettings, "potentialValueRange">> = new Promise((resolve, reject) => {
@@ -323,43 +327,54 @@ class FileImport {
             reader.readAsText(settings, "UTF-8");
             settingsReporter.started();
         });
-        const result = await Promise.all([waveFunctionPromise, observablesPromise, settingsPromise, psiTildePromise, observablesQmPromise, potentialPromise]);
+        const result = await Promise.all([waveFunctionPromise, observablesPromise, settingsPromise, 
+            psiPPromise, psiTildePromise, phiPPromise, observablesQmPromise, potentialPromise]);
         const x = result[0][0];
         const psi = result[0][1];
+        const hasPsiP: boolean = !!result[3];
+        const psiP1 = hasPsiP ? result[3][1] : undefined;
+        const p = hasPsiP ? result[3][0] : undefined;
         const observables2 = result[1];
         const settings1a: Omit<QuantumSettings, "potentialValueRange"> = result[2];
         let waveFct: Array<QuantumSystem> = psi.map((values: Array<[number, number]>, idx: number) => {
             const observables: ExpectationValues = observables2[idx];
-            // TODO here we'd also like to add psiP, if available
             const qmSystem: QuantumSystem = {
                 time: idx * settings1a.deltaT!,
                 psi: {...{
                     representation: "x",
                     basePoints: x,
                     values: values,
-                }, ...observables}
+                }, ...observables},
+                psiP: hasPsiP ? {
+                    representation: "p",
+                    basePoints: p,
+                    values: psiP1[idx],
+                } : undefined
             };
             return qmSystem;
         });
         const potRange: [number, number]|undefined = FileImport._potentialRange(settings1a, waveFct[0]);
         const settings2: QuantumSettings = {...settings1a, potentialValueRange: potRange};
-        if (result[3] && result[4] && classicalResults) {
-            const x2 = result[3][0];
-            const psiTilde = result[3][1];
-            if (psiTilde.length !== classicalResults.timesteps.length 
-                    || psiTilde.length !== waveFct.length) {
+        if (result[4] && result[6] && classicalResults) {
+            const x2 = result[4][0];
+            const phi = result[4][1];
+            if (phi.length !== classicalResults.timesteps.length 
+                    || phi.length !== waveFct.length) {
                 const msg = "Incompatible lengths between wave functions and/or trajectory"
                 reporter.error(msg);
                 throw new Error(msg);
             }
-            const obsQm: Array<ExpectationValues> = result[4];
+            const obsQm: Array<ExpectationValues> = result[6];
             // outer index: time, inner index: x
             let potential2: Array<Array<number>>|undefined = undefined;
-            if (result[5]) {
+            if (result[7]) {
                 // keep only real part
-                potential2 = result[5][1].map(timeslice => timeslice.map(complex => complex[0]));
+                potential2 = result[7][1].map(timeslice => timeslice.map(complex => complex[0]));
             }
-            const waveFctTilde: Array<QuantumSystemResidual> = psiTilde.map((values: Array<[number, number]>, idx: number) => {
+            const hasPhiP: boolean = !!result[5];
+            const phiP1 = hasPhiP ? result[5][1] : undefined;
+            const pPhi = hasPhiP ? result[5][0] : undefined;
+            const waveFctPhi: Array<QuantumSystemResidual> = phi.map((values: Array<[number, number]>, idx: number) => {
                 const psiResults = waveFct[idx];
                 const observablesPhi: ExpectationValues = obsQm[idx];
                 const systemPhi: {phi: WaveFunctionData; phiP?: WaveFunctionData, phiPotential?: Array<number>;} = {   
@@ -368,22 +383,19 @@ class FileImport {
                         basePoints: x2,
                         values: values
                     }, ...observablesPhi},
-                    // TODO phiP
+                    phiP: hasPhiP ? {
+                        representation: "p",
+                        basePoints: pPhi,
+                        values: phiP1[idx]
+                    } : undefined,
                     phiPotential: potential2 ? potential2[idx] : undefined
                 };
                 const phaseSpaceResult: ClassicalSystem = classicalResults.timesteps[idx];
                 const overallResult: QuantumSystemResidual = {...psiResults, ...systemPhi, ...phaseSpaceResult};
                 return overallResult;
             });
-            waveFct = waveFctTilde;
+            waveFct = waveFctPhi;
         }
-        /*
-            readonly id: string;
-            readonly timesteps: Array<QuantumSystem>;
-            readonly x: Array<number>;
-            readonly p?: Array<number>;
-            readonly settingsQm: QuantumSettings;
-        */
         return {
             id: id,
             x: x,
@@ -623,11 +635,13 @@ export class FileUpload extends HTMLElement {
         if (files.length === 0)
             return;
         const psi: File|undefined = files.find(fl => fl.name.toLowerCase() === "psi.csv");
+        const psiP: File|undefined = files.find(fl => fl.name.toLowerCase() === "psip.csv");
         const observables: File|undefined = files.find(fl => fl.name.toLowerCase() === "observables.csv");
         const settings: File|undefined = files.find(fl => fl.name.toLowerCase() === "settings.json");
         const points: File|undefined = files.find(fl => fl.name.toLowerCase() === "points.csv");
         // the three below are present for calculations in the residual rep only, besides all the other files
         const psiTilde: File|undefined = files.find(fl => fl.name.toLowerCase() === "psitilde.csv" || fl.name.toLowerCase() === "phi.csv");
+        const phiP: File|undefined = files.find(fl => fl.name.toLowerCase() === "phip.csv");
         const potential: File|undefined = files.find(fl => fl.name.toLowerCase() === "v_t.csv");
         const observablesQm: File|undefined = files.find(fl => fl.name.toLowerCase() === "observables.csv");
         const isQuantum: boolean = !!psi && !!observables;
@@ -648,7 +662,7 @@ export class FileUpload extends HTMLElement {
         try {
             const reporter: AggregatingReporter = new AggregatingReporter(this.#progressReporter);
             const resultsClassical = isClassical ? await FileImport.parseClassicalFiles(reporter, id, points, settings) : undefined;
-            const resultsQm = isQuantum ? await FileImport.parseQmFiles(reporter, id, psi, observables, settings, psiTilde, observablesQm, potential, resultsClassical) : undefined;
+            const resultsQm = isQuantum ? await FileImport.parseQmFiles(reporter, id, psi, observables, settings, psiP, psiTilde, phiP, observablesQm, potential, resultsClassical) : undefined;
             const results = isQuantum && isClassical ? {...resultsQm, classicalTrajectory: resultsClassical} : isQuantum ? resultsQm : resultsClassical;
             // TODO consume the event
             this.dispatchEvent(new CustomEvent<SimulationResult>("upload", {detail: results}));
