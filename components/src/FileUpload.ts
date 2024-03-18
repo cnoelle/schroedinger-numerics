@@ -29,7 +29,8 @@ class FileImport {
     static async parseClassicalFiles(reporter: AggregatingReporter, id: string, points: File, 
                 settings: File): Promise<SimulationResultClassical> {
         const pointsReporter = reporter.add();
-        
+        const settingsReporter = reporter.add();
+        reporter.started();
         const pointsPromise: Promise<Array<PhaseSpacePoint>> = new Promise((resolve, reject) => {
             const reader = new FileReader();
             reader.onload = (event: ProgressEvent<FileReader>) => {
@@ -66,8 +67,8 @@ class FileImport {
             };
             reader.onerror = reject;
             reader.readAsText(points, "UTF-8");
+            pointsReporter.started();
         });
-        const settingsReporter = reporter.add();
         const settingsPromise: Promise<ClassicalSettings> = new Promise((resolve, reject) => {
             const reader = new FileReader();
             reader.onload = (event: ProgressEvent<FileReader>) => {
@@ -82,6 +83,7 @@ class FileImport {
             };
             reader.onerror = reject;
             reader.readAsText(settings, "UTF-8");
+            settingsReporter.started();
         });
         try {
             const result = await Promise.all([pointsPromise, settingsPromise]);
@@ -205,6 +207,7 @@ class FileImport {
                     reporter.progress(event.loaded, event.total);
             };
             reader.readAsText(file, "UTF-8");
+            reporter.started();
         });
     }
 
@@ -256,19 +259,20 @@ class FileImport {
                     reporter.progress(event.loaded, event.total);
             };
             reader.readAsText(file, "UTF-8");
+            reporter.started();
         });
     }
 
     static async parseQmFiles(reporter: AggregatingReporter, id: string, waveFunction: File, observables: File, settings: File,
                 psiTilde?: File, observablesQm?: File, potential?: File, classicalResults?: SimulationResultClassical): Promise<SimulationResultQm> {
+        reporter.started();
         try {
             return await FileImport._parseQmFiles0(id, reporter, waveFunction, observables, settings, psiTilde, observablesQm, potential, classicalResults);
         } catch (e) {
             reporter.error(e?.toString());
             throw e;
-
-        /*} finally {
-            reporter.isDone();*/
+        } finally {
+            reporter.isDone();
         }
     }
 
@@ -297,11 +301,14 @@ class FileImport {
 
     private static async _parseQmFiles0(id: string, reporter: AggregatingReporter,  waveFunction: File, observables: File, settings: File,
             psiTilde?: File, observablesQm?: File, potential?: File, classicalResults?: SimulationResultClassical): Promise<SimulationResultQm> {
+        const settingsReporter = reporter.add();
         const waveFunctionPromise: Promise<[Array<number>, Array<Array<[number, number]>>]> = FileImport._parseWaveFunctionFile(waveFunction, reporter);
         const observablesPromise: Promise<Array<ExpectationValues>> = FileImport._parseObservablesFile(observables, reporter);
+        const psiTildePromise: Promise<[Array<number>, Array<Array<[number, number]>>]|undefined> = FileImport._parseWaveFunctionFile(psiTilde, reporter);
+        const observablesQmPromise: Promise<Array<ExpectationValues>|undefined> = FileImport._parseObservablesFile(observablesQm, reporter);
+        const potentialPromise: Promise<[Array<number>, Array<Array<[number, number]>>]> = FileImport._parseWaveFunctionFile(potential, reporter, {headerPrefix: "V"});
         const settingsPromise: Promise<Omit<QuantumSettings, "potentialValueRange">> = new Promise((resolve, reject) => {
             const reader = new FileReader();
-            const settingsReporter = reporter.add();
             reader.onload = (event: ProgressEvent<FileReader>) => {
                 const result: string = event.target.result as string;
                 try {
@@ -314,10 +321,8 @@ class FileImport {
             };
             reader.onerror = reject;
             reader.readAsText(settings, "UTF-8");
+            settingsReporter.started();
         });
-        const psiTildePromise: Promise<[Array<number>, Array<Array<[number, number]>>]|undefined> = FileImport._parseWaveFunctionFile(psiTilde, reporter);
-        const observablesQmPromise: Promise<Array<ExpectationValues>|undefined> = FileImport._parseObservablesFile(observablesQm, reporter);
-        const potentialPromise: Promise<[Array<number>, Array<Array<[number, number]>>]> = FileImport._parseWaveFunctionFile(potential, reporter, {headerPrefix: "V"});
         const result = await Promise.all([waveFunctionPromise, observablesPromise, settingsPromise, psiTildePromise, observablesQmPromise, potentialPromise]);
         const x = result[0][0];
         const psi = result[0][1];
@@ -410,7 +415,7 @@ class SingleTaskReporter implements ProgressSink {
 
     started(): void {
         this.#status = "active";
-        this._sink.started();
+        /*this._sink.started();*/
     }
 
     progress(done: number, total: number): void {
@@ -420,12 +425,6 @@ class SingleTaskReporter implements ProgressSink {
     }
 
     done(): number {
-        if (Number.isFinite(this.#total) && this.#total > 0)
-            this.#done = this.#total;
-        else {
-            this.#done = 1;
-            this.#total = 1;
-        }
         return this.#done;
     }
 
@@ -434,8 +433,14 @@ class SingleTaskReporter implements ProgressSink {
     }
 
     isDone(): void {
+        if (Number.isFinite(this.#total) && this.#total > 0)
+            this.#done = this.#total;
+        else {
+            this.#done = 1;
+            this.#total = 1;
+        }
         this.#status = "done";
-        this._sink.isDone();
+        /*this._sink.isDone();*/
     }
 
     error(reason?: any): void {
@@ -465,9 +470,9 @@ class AggregatingReporter implements ProgressSink {
     }
 
     started(): void {
-        const allStarted: boolean = this.#reporters.find(r => r.status() === "inactive") === undefined;
-        if (allStarted)
-            this._sink.started();
+        if (this.#done)
+            return;
+        this._sink.started();
     }
 
     progress(done: number, total: number): void {
@@ -480,11 +485,9 @@ class AggregatingReporter implements ProgressSink {
     }
 
     isDone(): void {
-        if (this.#done) 
-            return;
-        this.#done = this.#reporters.find(r => r.status() !== "done") === undefined;
         if (this.#done)
-            this._sink.isDone();
+            return;
+        this._sink.isDone();
     }
 
     error(reason?: any): void {
@@ -552,9 +555,16 @@ export class FileUpload extends HTMLElement {
         super();
         const style: HTMLStyleElement = document.createElement("style");
         //style.textContent = ":host { position: relative; display: block; }";
-        style.textContent = ".upload-dataset { display: flex; column-gap: 1em; margin-bottom: 1em; }";
+        style.textContent = ".upload-dataset { display: flex; column-gap: 1em; margin-bottom: 1em; } "
+            + ".overlay { position: fixed; width: 100%; height: 100%; top: 0; left: 0; z-index: 10; "
+            +      "background-color: rgb(0,0,0, 0.2); display: flex; justify-items: center; "
+            +      "justify-content: space-around;     align-items: center; } " 
+            /* https://stackoverflow.com/questions/23772673/hidden-property-does-not-work-with-flex-box */
+            +  ".overlay[hidden]{ display:none; } "
+            + ".overlay>div>div {font-size: 1.8em; margin-bottom: 1em; } " 
+            + ".overlay>div>progress { transform: scale(2); }";
         this.attachShadow({mode: "open"});
-        this.shadowRoot.appendChild(style); // TODO do we first need to attach a new shadow root?
+        this.shadowRoot.appendChild(style);
         const uploadDataset = JsUtils.createElement("div", {classes: ["upload-dataset"], parent: this.shadowRoot});
         JsUtils.createElement("div", {text: "Dataset", parent: uploadDataset});
         this.#datasetIdField = JsUtils.createElement("input", {attributes: new Map([["type", "text"], ["value", "default"], ["placeholder", "Dataset name"]]), 
@@ -576,13 +586,14 @@ export class FileUpload extends HTMLElement {
         this.#progress = JsUtils.createElement("progress", {parent: overlay2, 
                 attributes: new Map([["max", "100"], ["value", "0"]])});                
         this.#progress.value = 0;  // ?
+        const progressEl = this.#progress;
         this.#progressReporter = {
             started() {
                 progressOverlay.hidden = false;
             },
             progress(done: number, total: number) {
                 const progress: number = total > 0 ? done / total : 0;
-                this.#progress.value = progress * 100;
+                progressEl.value = progress * 100;
             }, 
             isDone() {
                 progressOverlay.hidden = true;
@@ -651,8 +662,5 @@ export class FileUpload extends HTMLElement {
             this.#uploadRunning = false;
         }
     }
-
-
-
 
 }
