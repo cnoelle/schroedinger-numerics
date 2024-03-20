@@ -41,7 +41,7 @@ export class PhaseSpaceDensityWidget extends HTMLElement implements QmWidget {
     #waveFunctionType: "psi"|"phi" = "psi";
     #currentParameters: Array<QuantumSettings&VisualizationSettings>;
 
-    #grid: boolean = false;
+    #grid: boolean = true;
     #gridLineWidth: number = 0.5;
 
     // size of boundary for axis labels and title in case of #grid = true
@@ -55,13 +55,15 @@ export class PhaseSpaceDensityWidget extends HTMLElement implements QmWidget {
     constructor() {
         super();
         // TODO react to size changes of the canvas
-        const initialWidth = parseInt(this.getAttribute("width")) || 480;  // XXX?
-        const initialHeight = parseInt(this.getAttribute("height")) || 240;
+        const initialWidth = parseInt(this.getAttribute("width")) || 512;
+        const initialHeight = parseInt(this.getAttribute("height")) || 512;
         this.#canvas = document.createElement("canvas");
+        this.#canvas.width = initialWidth;
+        this.#canvas.height = initialHeight;
         this.#offscreen = new OffscreenCanvas(initialWidth, initialHeight);
         
         const style: HTMLStyleElement = document.createElement("style");
-        style.textContent = ":host { position: relative; display: block; }";
+        style.textContent = ":host { position: relative; display: flex; align-items: end;}";
         const shadow: ShadowRoot = this.attachShadow({mode: "open"});
         shadow.appendChild(style);
         shadow.appendChild(this.#canvas);
@@ -235,12 +237,12 @@ export class PhaseSpaceDensityWidget extends HTMLElement implements QmWidget {
         }
         if (this.#grid) {
             const hbarSqrt = Math.sqrt(this.#currentParameters[0].hbar);
-            let xGridLines = Math.floor((xMax + 1 - xMin) / hbarSqrt);
-            let pGridLines = Math.floor((pMax + 1 - pMin) / hbarSqrt);
+            let xGridLines = Math.floor((xMax + hbarSqrt - xMin) / hbarSqrt);
+            let pGridLines = Math.floor((pMax + hbarSqrt - pMin) / hbarSqrt);
             //const xGridLines: number = density.cellsX ? density.cellsX + 1 : 5;
             //const pGridLines: number = density.cellsP ? density.cellsP + 1 : 5;
             // TODO else?
-            if (xGridLines > 0 && pGridLines > 0 && xGridLines < 100 && pGridLines < 100) {
+            if (xGridLines > 0 && pGridLines > 0 && xGridLines < 100 && pGridLines < 200) {
                 this._drawGrid(width, height, {x: [xMin, xMax], p: [pMin, pMax],
                     xGridLines: xGridLines, pGridLines: pGridLines});
             }
