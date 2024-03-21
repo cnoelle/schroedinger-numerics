@@ -87,9 +87,56 @@ export interface SimulationResultQmResidual extends SimulationResultQm, Simulati
 
 export type SimulationResult = SimulationResultClassical|SimulationResultQm|SimulationResultQmResidual;
 
+const minMax = (wf: WaveFunction): [number, number] => {
+    return wf.values.reduce((minMax: [number, number], [r, i]) => {
+        if (r < minMax[0])
+            minMax[0] = r;
+        else if (r > minMax[1])
+            minMax[1] = r;
+        if (i < minMax[0])
+            minMax[0] = i;
+        else if (i > minMax[1])
+            minMax[1] = i;
+        return minMax;
+    }, [0, 0]);
+}
+
 export function simulationSettings(result: SimulationResult): SimulationSettings {
-    return (result as SimulationResultQm).settingsQm ? (result as SimulationResultQm).settingsQm 
-        :  (result as SimulationResultClassical).settingsClassical;
+    if ((result as SimulationResultQm).settingsQm) {
+        const qmResult: SimulationResultQm = result as SimulationResultQm;
+        if (qmResult.timesteps.length === 0 || qmResult.settingsQm?.valueRange)
+            return qmResult.settingsQm;
+        const ts: Array<QuantumSystemResidual> = qmResult.timesteps as any;
+        const first: QuantumSystemResidual = ts[0];
+        const hasPsiP = !!first.psiP;
+        const hasPhi = !!first.phi;
+        const hasPhiP = !!first.phiP;
+        const set = (minMaxGlob: [number, number], minMaxLoc: [number, number]) => {
+            if (minMaxLoc[0] < minMaxGlob[0])
+                minMaxGlob[0] = minMaxLoc[0];
+            if (minMaxLoc[1] > minMaxGlob[1])
+                minMaxGlob[1] = minMaxLoc[1];
+        }
+        const derivedRanges: WaveFunctionRanges = ts.reduce((minMaxVal: WaveFunctionRanges, ts) => {
+            const psiMinMax = minMax(ts.psi);
+            set(minMaxVal.psi, psiMinMax);
+            if (hasPsiP) {
+                const psiPMinMax = minMax(ts.psiP);
+                set(minMaxVal.psiP, psiPMinMax);
+            }
+            if (hasPhi) {
+                const phiMinMax = minMax(ts.phi);
+                set(minMaxVal.phi, phiMinMax);
+            }
+            if (hasPhiP) {
+                const phiPMinMax = minMax(ts.phiP);
+                set(minMaxVal.phiP, phiPMinMax);
+            }
+            return minMaxVal;
+        }, {psi: [0, 0], psiP: hasPsiP ? [0, 0] : undefined, phiP: hasPhiP ? [0, 0] : undefined, phi: hasPhi ? [0, 0]: undefined});
+        return {...qmResult.settingsQm, valueRange: derivedRanges} as QuantumSettings;
+    }
+    return (result as SimulationResultClassical).settingsClassical;
 }
 
 /**
@@ -113,10 +160,18 @@ export interface SimulationSettings {
     readonly scheme: Scheme;
 }
 
+export interface WaveFunctionRanges {
+    psi: [number, number];
+    psiP?: [number, number];
+    phi?: [number, number];
+    phiP?: [number, number];
+}
+
 export type QuantumSettings = SimulationSettings & {
     readonly type: "qm";
     readonly hbar: number;
     readonly deltaX?: number; 
+    readonly valueRange?: WaveFunctionRanges;
 } & Potential;
 
 export type ClassicalSettings = SimulationSettings & {

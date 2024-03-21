@@ -12,6 +12,7 @@ export class WaveFunctionPlot extends HTMLElement implements QmWidget {
 
     static get observedAttributes() {
         return ["width", "height", "absolute-values", "show-norm", "show-real-imag", "show-potential",
+                "value-range",
                 "wave-function-type", "representation", "title"]; 
     }
 
@@ -35,7 +36,10 @@ export class WaveFunctionPlot extends HTMLElement implements QmWidget {
     }
 
     #chart: uPlot;
-    #yRange: number = 1;  // TODO [number, number]
+    // range explicitly set
+    #valueRange: [number, number]|undefined; 
+    // range determined from data
+    #yRange: [number, number] = [0, 1];  // TODO [number, number]
     #ERange: [number, number] = [0, 1];
     #activeIds: Array<string> = [];
 
@@ -93,6 +97,14 @@ export class WaveFunctionPlot extends HTMLElement implements QmWidget {
 
     get showPotential(): boolean {
         return this.#showPotential;
+    }
+
+    get valueRange(): [number, number]|undefined {
+        return this.#valueRange ? [...this.#valueRange] : undefined;
+    }
+
+    set valueRange(range: [number, number]|undefined) {
+        this.#valueRange = range ? [...range] : undefined;
     }
 
     set waveFunctionType(type: "psi"|"phi") {
@@ -155,6 +167,15 @@ export class WaveFunctionPlot extends HTMLElement implements QmWidget {
             if (newValue === "psi" || newValue === "phi")
                 this.#waveFunctionType = newValue;
             break;
+        case "value-range":
+            if (newValue) {
+                const arr: [number, number] = newValue.split(",").map(v => parseFloat(v)) as any;
+                if (arr.length !== 2 || arr.findIndex(v => !Number.isFinite(v)) >= 0)
+                    throw new Error("Invalid attribute value-range, need two numbers separated by a comma, got " + newValue);
+                this.valueRange = arr;
+            } else
+                this.valueRange = undefined;
+            break;
         default:
             //this.#canvas.setAttribute(name, newValue);
         }
@@ -177,20 +198,36 @@ export class WaveFunctionPlot extends HTMLElement implements QmWidget {
         // e.g. window.sch.psi.setSize({width: 640, height: 480})
     }
 
+    private _getRange() {
+        let range = this.#valueRange || this.#yRange;
+        if (this.#absoluteValues && range[0] < 0) {
+            if (range[1] < 0)
+                range = [-range[1], -range[0]];
+            else 
+                range = [0, range[1]];
+        }
+        return range;
+    }
+
     private _initChart() {
         if (!this.#chart) {
             const width: number = parseInt(this.getAttribute("width")) 
                 || this.getBoundingClientRect().width || 800;
             const height: number = parseInt(this.getAttribute("height")) 
                 || /*this.#element.getBoundingClientRect().height ||*/ 600;
+            const title = this.title || (this.representation === "x" ? (this.#waveFunctionType === "phi" ? "Φ" : "ψ")
+                : (this.#waveFunctionType === "phi" ? "<math xmlns=\"http://www.w3.org/1998/Math/MathML\">"+
+                    "<mover><mrow>Φ</mrow><mo>~</mo></mover></math>(p)" : "<math xmlns=\"http://www.w3.org/1998/Math/MathML\">"+
+                    "<mover><mrow>ψ</mrow><mo>~</mo></mover></math>(p)"));
+            
             const options: Options = {
                 width: width,
                 height: height,
-                title: this.title || (this.#waveFunctionType === "phi" ? "Φ" : "ψ"),
+                title: title,
                 cursor: {drag: { x: true, y: true, uni: 50  } }, // FIXME?=
                 scales: {
                     x: { time: false },
-                    1: { range: (self, min, max) => [0, this.#yRange] },
+                    1: { range: (self, min, max) => this._getRange() },
                 },
                 series: [{label: "x"}, {label: "Test"}],
                 axes: [{}, {
@@ -211,6 +248,11 @@ export class WaveFunctionPlot extends HTMLElement implements QmWidget {
                 [], []
             ] as any;
             this.#chart = new uPlot(options, data, this.#element);
+            if (title.startsWith("<math")) {
+                const titleDiv = this.shadowRoot.querySelector(".u-title");
+                if (titleDiv)
+                    titleDiv.innerHTML = titleDiv.textContent;
+            }
         } else {
             // TODO adapt existing
         }
@@ -223,6 +265,16 @@ export class WaveFunctionPlot extends HTMLElement implements QmWidget {
             this.clear();
             return;
         }
+        let rangeField = this.#waveFunctionType;
+        if (this.#representation === "p")
+            rangeField = rangeField + "P";
+        const ranges0 = settings.map(s => (s as QuantumSettings).valueRange).filter(r => r);
+        const ranges: Array<[number, number]> = ranges0.map(wfRanges => wfRanges[rangeField]);
+        const min = ranges.reduce((a,b) => Math.min(a, b[0]), 0);
+        const max = ranges.reduce((a,b) => Math.max(a, b[1]), 0);
+        this.#yRange = [min, max];
+        const isAbsolute = this.#absoluteValues;
+
         this._initChart();
         const multiIds: boolean = ids.length > 1;
         if (this.#activeIds.length === 1 && !multiIds)
@@ -347,14 +399,19 @@ export class WaveFunctionPlot extends HTMLElement implements QmWidget {
         if (this.#representation === "p")
             wf += "P";
         let potentialAdded: boolean = false;
+        const realMapper = this.#absoluteValues ? (xy: [number, number]) => Math.abs(xy[0])
+            : (xy: [number, number]) => xy[0];
+        const imagMapper = this.#absoluteValues ? (xy: [number, number]) => Math.abs(xy[1])
+            : (xy: [number, number]) => xy[1];
+
         for (const result of state) {
             idx++;
             // @ts-ignore
             const waveFunction: WaveFunctionData = result[wf];
             if (allDomainsEqual) {
                 const abs: Array<number> = waveFunction.values.map(xy => Math.sqrt(xy[0]*xy[0] + xy[1]*xy[1]));
-                const real: Array<number> = waveFunction.values.map(xy => Math.abs(xy[0]));
-                const img: Array<number> = waveFunction.values.map(xy => Math.abs(xy[1]));
+                const real: Array<number> = waveFunction.values.map(realMapper);
+                const img: Array<number> = waveFunction.values.map(imagMapper);
                 //const data: AlignedData = [x, abs, real, img, slice.settings.V];
                 data.push(...[abs, real, img]);
                 // @ts-ignore
@@ -380,8 +437,8 @@ export class WaveFunctionPlot extends HTMLElement implements QmWidget {
                     });
                 };
                 const abs: Array<number> = ev(xy => Math.sqrt(xy[0]*xy[0] + xy[1]*xy[1]));
-                const real: Array<number> = ev(xy => Math.abs(xy[0]));
-                const img: Array<number> = ev(xy => Math.abs(xy[1]));
+                const real: Array<number> = ev(realMapper);
+                const img: Array<number> = ev(imagMapper);
                 data.push(...[abs, real, img]);
                 // @ts-ignore
                 if (!potentialAdded && (this.#waveFunctionType === "psi" && result.psiPotential || 
