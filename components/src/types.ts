@@ -191,9 +191,13 @@ export interface VisualizationSettings {
 export type SimulationParameters = (QuantumSettings|ClassicalSettings)&VisualizationSettings;
 
 export interface QmWidget {
-    initialize(settings: Array<SimulationParameters>): void;  // TODO further parameters?
+    initialize(settings: Array<SimulationParameters>): void;
     clear(): void;
     set(state: Array<SimulationSystem>): void;
+    /**
+     * For widgets that need to know the complete results upon init
+     */
+    initializeValues?(results: Array<SimulationResult>): void;
 }
 
 export enum SimulationState {

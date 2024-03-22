@@ -215,11 +215,10 @@ export class WaveFunctionPlot extends HTMLElement implements QmWidget {
                 || this.getBoundingClientRect().width || 800;
             const height: number = parseInt(this.getAttribute("height")) 
                 || /*this.#element.getBoundingClientRect().height ||*/ 600;
-            const title = this.title || (this.representation === "x" ? (this.#waveFunctionType === "phi" ? "Φ" : "ψ")
-                : (this.#waveFunctionType === "phi" ? "<math xmlns=\"http://www.w3.org/1998/Math/MathML\">"+
-                    "<mover><mrow>Φ</mrow><mo>~</mo></mover></math>(p)" : "<math xmlns=\"http://www.w3.org/1998/Math/MathML\">"+
-                    "<mover><mrow>ψ</mrow><mo>~</mo></mover></math>(p)"));
-            
+            const symb = (this.#waveFunctionType === "phi" ? "Φ" : "ψ");
+            const title = this.title || (this.representation === "x" ? symb + "(x)"
+                : "<math xmlns=\"http://www.w3.org/1998/Math/MathML\"><mover><mrow>"
+                    + symb + "</mrow><mo>~</mo></mover></math>(p)");
             const options: Options = {
                 width: width,
                 height: height,

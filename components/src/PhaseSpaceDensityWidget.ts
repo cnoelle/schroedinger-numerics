@@ -4,6 +4,7 @@ import { Coordinates, QmWidget, QuantumSettings, QuantumSystem, QuantumSystemRes
 /**
  * A webcomponent that displays a phase space density derived from the absolute values 
  * of a wave function in position space and momentum space
+ * TODO keep grid in offset canvas and reapply it every time
  * TODO support multiple wave functions!
  */
 export class PhaseSpaceDensityWidget extends HTMLElement implements QmWidget {

@@ -27,6 +27,8 @@ export class SimulationController implements SimulationStateListener {
         // TODO color etc
         const params: SimulationParameters = {...params0 as any, id: result.id, color: new ColorRgba([255,0,0,1]) };
         widgets.forEach(w => w.initialize([params]));
+        // TODO support multiple
+        widgets.filter(w => w.initializeValues).forEach(w => w.initializeValues([result]));
         this._ctrl.onProgress(0);
         this.stateChanged(SimulationState.INITIALIZED);
         this._datasetGrid?.addResultDataset(result);
