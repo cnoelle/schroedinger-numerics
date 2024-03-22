@@ -11,6 +11,7 @@ type MutableExpectationValues = {
  * Likewise, "E over x" can represent the energy of a classical trajectory, or the respective quantum 
  * expectation values
  */
+// TODO reuse those dataset labels for the PhaseSpaceDensityWidget?
 export class ObservablesWidget extends HTMLElement implements QmWidget {
 
     private static DEFAULT_TAG: string = "observables-widget";
@@ -52,6 +53,7 @@ export class ObservablesWidget extends HTMLElement implements QmWidget {
      * false for a single result
      */
     #showLegend: boolean|undefined = undefined;
+    #adaptedERange: {xRange: [number, number], eRange: [number, number]}|undefined = undefined;
 
     set width(width: number) {
         this.#canvas.width = width;
@@ -85,24 +87,6 @@ export class ObservablesWidget extends HTMLElement implements QmWidget {
         return this.#showLegend;
     }
 
-    /*
-    set waveFunctionType(type: "psi"|"phi") {
-        this.#waveFunctionType = type;
-    }
-
-    get waveFunctionType(): "psi"|"phi" {
-        return this.#waveFunctionType;
-    }
-
-    set representation(representation: "x"|"p") {
-        this.#representation = representation;
-    }
-
-    get representation(): "x"|"p" {
-        return this.#representation
-    }
-    */
-
     get observableType(): "p"|"E" {
         return this.#observableType;
     }
@@ -129,17 +113,6 @@ export class ObservablesWidget extends HTMLElement implements QmWidget {
             else
                 this.height = num;
             break;
-        /*
-        case "representation":
-            if (newValue === "x" || newValue === "p")
-                this.representation = newValue;
-            break;
-        case "wave-function-type":
-            newValue = newValue?.toLowerCase();
-            if (newValue === "psi" || newValue === "phi")
-                this.#waveFunctionType = newValue;
-            break;
-        */
         case "title":
             this._setTitle();
             break;
@@ -202,15 +175,12 @@ export class ObservablesWidget extends HTMLElement implements QmWidget {
         this.#titleEl = JsUtils.createElement("h3", {text: "Energy", parent: titleContainer});
         const container: HTMLElement = JsUtils.createElement("div", {parent: titleContainer, classes: ["position-relative"]});
 
-        //const flexContainer: HTMLElement = JsUtils.createElement("div", {parent: container, classes: ["phase-space-container", "position-absolute"]});
-        const canvas = JsUtils.createElement("canvas", {parent: container }); // TODO: class for width and height?
+        const canvas = JsUtils.createElement("canvas", {parent: container });
         canvas.width = ObservablesWidget.WIDTH + 2 * ObservablesWidget.WIDTH_OFFSET;
         canvas.height = ObservablesWidget.HEIGHT + 2 * ObservablesWidget.HEIGHT_OFFSET;
 
 
         const legend: HTMLElement = JsUtils.createElement("fieldset", { classes: ["phase-space-legend"], parent: shadow});
-        // TODO?
-        /*this.#element.parentElement.insertBefore(legend, this.#element.nextElementSibling);*/
         const legendTitle: HTMLElement = JsUtils.createElement("legend", {parent: legend, text: "Datasets"});
         const legendGrid: HTMLElement = JsUtils.createElement("div", {parent: legend, classes: ["legend-grid"]});
         this.#legendGrid = legendGrid;
@@ -219,50 +189,6 @@ export class ObservablesWidget extends HTMLElement implements QmWidget {
 
         this.#canvas = canvas;
         this.#container = container;
-                /*
-        const coordinate: string = "E"; // TODO adapt on change!
-        const setCoordinateRange = (range: [number, number]|undefined, xOrY: boolean) => {
-            if (!this.#currentData)
-                return;
-            if (range !== undefined && !Array.isArray(range)) {
-                console.log("Need an array of two values (min, max), got ", range);
-                return;
-            }
-            if (Array.isArray(range) && range.length !== 2) {
-                console.log("Need an array of two values (min, max), got ", range);
-                return;
-            }
-            const coordinate: "x"|"p" = xOrY ? "x" : "p";
-            const otherCoordinate: "x"|"p" = xOrY ? "p" : "x";
-            const otherRange: [number, number] = xOrY ? this.#pRange : this.#xRange;
-            this.initialize(this.#currentData[0], this.#currentData[1], true, {[coordinate]: range, [otherCoordinate]: otherRange});
-            if (this.#currentSlices && this.#currentClassicalPoints)
-                this.next(this.#currentSlices, this.#currentClassicalPoints);
-        };
-        // TODO need to reset points
-
-        const debug = {
-            setX: (xRange: [number, number]) => setCoordinateRange(xRange, true),
-            ["set" + coordinate]: (pRange: [number, number]) => setCoordinateRange(pRange, false),
-            reset: () => {
-                this.initialize(this.#currentData[0], this.#currentData[1], true);
-                if (this.#currentSlices && this.#currentClassicalPoints)
-                    this.next(this.#currentSlices, this.#currentClassicalPoints);
-            },
-            setSize: (size: {width?: number, height?: number, ticks?: number, numDigitsX?: number, numDigitsY?: number}) => {
-                this.#width = size.width || this.#width;
-                this.#height = size.height || this.#height;
-                this.#ticks = size.ticks || this.#ticks;
-                this.#numDigitsX = size.numDigitsX || this.#numDigitsX;
-                this.#numDigitsY = size.numDigitsY || this.#numDigitsY;
-                this.initialize(this.#currentData[0], this.#currentData[1], true);
-                if (this.#currentSlices && this.#currentClassicalPoints)
-                    this.next(this.#currentSlices, this.#currentClassicalPoints);
-            }
-        };
-        (window as any).sch = (window as any).sch || {};
-        (window as any).sch[coordinate] = debug;
-        */
     }
 
     private _setLegendVisibility() {
@@ -281,8 +207,9 @@ export class ObservablesWidget extends HTMLElement implements QmWidget {
             return;
         const width = this.width;  // FIXME need to 
         const height = this.height;
-        const xRange = [minMax.min.x, minMax.max.x];
-        const pRange = this.#observableType === "p" ? [minMax.min.p, minMax.max.p] : [minMax.min.E, minMax.max.E]
+        const xRange = this.#adaptedERange?.xRange || [minMax.min.x, minMax.max.x];
+        const pRange = this.#observableType === "p" ? [minMax.min.p, minMax.max.p] : 
+            (this.#adaptedERange?.eRange || [minMax.min.E, minMax.max.E])
         const startX: number = 0;
         const endX: number = /*this.#width + 2 * ObservablesWidget.WIDTH_OFFSET*/ width;
         const usedStartX: number = ObservablesWidget.WIDTH_OFFSET;
@@ -398,7 +325,8 @@ export class ObservablesWidget extends HTMLElement implements QmWidget {
             max: Object.fromEntries(ObservablesWidget._EXP_KEYS.map(key => [key, 0])) as MutableExpectationValues});
         this.#currentMinMax = minMax;
         const ctx = this.#canvas.getContext("2d");
-        // TODO draw potential, if this is energy
+        if (this.#observableType === "E")
+            this.#adaptedERange = this._drawPotential(ctx);
         this._drawAxes(ctx);
         this._drawTrajectories(ctx, results);
         this._createPoints();
@@ -410,10 +338,14 @@ export class ObservablesWidget extends HTMLElement implements QmWidget {
         if (!minMax)
             return;
         const isP: boolean = this.#observableType === "p";
-        const xMin: number = minMax.min.x;
-        const xMax: number = minMax.max.x;
-        const pMin: number = isP ? minMax.min.p : minMax.min.E;
-        const pMax: number = isP ? minMax.max.p : minMax.max.E;
+        const xRange = this.#adaptedERange?.xRange || [minMax.min.x, minMax.max.x];
+        const pRange = isP ? [minMax.min.p, minMax.max.p] : 
+            (this.#adaptedERange?.eRange || [minMax.min.E, minMax.max.E])
+
+        const xMin: number = xRange[0];
+        const xMax: number = xRange[1];
+        const pMin: number = pRange[0];
+        const pMax: number = pRange[1];
         let idx: number = -1;
         const width = this.width - 2 * ObservablesWidget.WIDTH_OFFSET;
         const height = this.height - 2 * ObservablesWidget.HEIGHT_OFFSET;
@@ -443,6 +375,50 @@ export class ObservablesWidget extends HTMLElement implements QmWidget {
         }
     }
 
+    private _drawPotential(ctx: CanvasRenderingContext2D): {xRange: [number, number], eRange: [number, number]}|undefined {
+        const minMax: {min: ExpectationValues; max: ExpectationValues;} = this.#currentMinMax;
+        if (!minMax)
+            return undefined;
+        const xMinSet: number = minMax.min.x;
+        const xMaxSet: number = minMax.max.x;
+        const eMinSet: number = minMax.min.E;
+        const eMaxSet: number = minMax.max.E;
+        const suitableParams: SimulationParameters|undefined = this.#currentParameters.find(p => p.points && p.V);
+        if (!suitableParams)
+            return undefined;
+        const x: Array<number> = suitableParams.points;
+        const V: Array<number> = suitableParams.V;
+        const minX = x[0];
+        const maxX = x[x.length-1];
+        const min = Math.max(minX, xMinSet - 0.3 * Math.abs(xMinSet));
+        const max = Math.min(maxX, xMaxSet + 0.3 * Math.abs(xMaxSet));
+        const maxV = Math.max(Math.max(...V), eMaxSet);
+        const minV = Math.min(Math.min(...V), eMinSet);
+        ctx.beginPath();
+        ctx.strokeStyle = "black"; // ?
+        let initialized: boolean = false;
+        const width = this.width - 2 * ObservablesWidget.WIDTH_OFFSET;
+        const height = this.height - 2 * ObservablesWidget.HEIGHT_OFFSET;
+        for (let idx=0; idx<x.length; idx++) {
+            const x0: number = x[idx];
+            if (x0 < min)
+                continue;
+            if (x0 > max)
+                break;
+            const val: number = V[idx];
+            const xPx: number = ObservablesWidget.WIDTH_OFFSET + (x0 - min) / (max - min) * width
+            const yPx: number = ObservablesWidget.HEIGHT_OFFSET + (1-((val - minV) / (maxV - minV))) * height;
+            if (!initialized) {
+                ctx.moveTo(xPx, yPx);
+                initialized = true;
+            } else {
+                ctx.lineTo(xPx, yPx);
+            }
+        }
+        ctx.stroke();
+        return {xRange: [min, max], eRange: [minV, maxV]};
+    }
+
     private _createPoints() {
         this.#currentPoints = this.#currentParameters?.map(param => {
             const point = JsUtils.createElement("div", {parent: this.#container, classes: ["current-point", "position-absolute"]});
@@ -461,142 +437,14 @@ export class ObservablesWidget extends HTMLElement implements QmWidget {
         });
     }
 
-    /*
-    initializeOld(qmResults: QuantumSimulationResult[], classicalResults: Array<ClassicalSimulationResult>,
-            keepSlices?: boolean,
-            ranges?: {x?: [number, number], p?: [number, number]}): void {
-        this.clear(keepSlices);
-        this.#currentDataOld = [qmResults, classicalResults];
-        let xMin: number|undefined;
-        let xMax: number|undefined;
-        let pMin: number|undefined;
-        let pMax: number|undefined;
-        const points: Array<Array<Point>> = qmResults.map(r => r.observables);
-        points.push(...classicalResults.map(r => r.points));
-        const eOrP: boolean = this.energyOrMomentum;
-        if (ranges?.x)
-            [xMin, xMax] = ranges.x;
-        if (ranges?.p)
-            [pMin, pMax] = ranges.p;
-        for (const arr of points) {
-            for (const p of arr) {
-                if (!ranges?.x && isFinite(p.x)) {
-                    if (!(xMin <= p.x))
-                        xMin = p.x;
-                    if (!(xMax >= p.x))
-                        xMax = p.x;
-                }
-                const val: number|undefined = eOrP ? p.E : p.p;
-                if (!ranges?.p && isFinite(val)) {
-                    if (!(pMin <= val))
-                        pMin = val;
-                    if (!(pMax >= val))
-                        pMax = val;
-                }
-            }
-        }
-        // TODO round numbers
-        xMin = isFinite(xMin) ? xMin : 0;
-        xMax = isFinite(xMax) ? xMax : 1;
-        pMin = (isFinite(pMin) && (ranges?.p || !eOrP)) ? pMin : 0;
-        pMax = isFinite(pMax) ? pMax : 1;
-        let potentialDrawn: boolean = false;
-        const ctx: CanvasRenderingContext2D = this.#canvas.getContext("2d");
-        if (this.energyOrMomentum && qmResults?.length > 0) { // plot a slightly larger domain than the actually occurring xs
-            const minMaxX: Array<[number,number]> = qmResults.map(r => [r.x[0], r.x[r.x.length - 1]]);
-            const min: number = minMaxX.map(mm => mm[0]).reduce((val, x) => x < val ? x : val, xMin || 0);
-            const max: number = minMaxX.map(mm => mm[1]).reduce((val, x) => x > val ? x : val, xMax || 1);
-            if (min < xMin) 
-                xMin = Math.max(xMin - 0.3 * Math.abs(xMin), min);
-            if (max > xMax)
-                xMax = Math.min(xMax + 0.3 * Math.abs(xMax), max);
-            // TODO adapt also pMin and pMax
-            // XXX simply select the first?
-            const firstResult: QuantumSimulationResult = qmResults.find(r => r.settings.V?.length === r.x.length);
-            if (firstResult) {
-                const containedIndices: Array<number> 
-                    = firstResult.x.map((val, idx) => val >= xMin && val <= xMax ? idx : -1).filter(idx => idx >= 0);
-                const maxV: number = Math.max(...firstResult.settings.V.filter((_, idx) => containedIndices.indexOf(idx) >= 0));
-                if (maxV > pMax)
-                    pMax = maxV;
-                ctx.beginPath();
-                ctx.strokeStyle = "black"; // ?
-                let initialized: boolean = false;
-
-                for (let idx=0; idx<firstResult.x.length; idx++) {
-                    const x: number = firstResult.x[idx];
-                    if (x < xMin)
-                        continue;
-                    if (x > xMax)
-                        break;
-                    const val: number = firstResult.settings.V[idx];
-                    const xPx: number = ObservablesWidget.WIDTH_OFFSET + (x - xMin) / (xMax - xMin) * this.#width
-                    const yPx: number = ObservablesWidget.HEIGHT_OFFSET + (1-((val - pMin) / (pMax - pMin))) * this.#height;
-                    if (!initialized) {
-                        ctx.moveTo(xPx, yPx);
-                        initialized = true;
-                    } else {
-                        ctx.lineTo(xPx, yPx);
-                    }
-                }
-                ctx.stroke();
-                potentialDrawn = true;
-            }
-        }
-        this.#xRange = [xMin, xMax];
-        this.#pRange = [pMin, pMax];
-        this._drawAxes(ctx);
-        let idx: number = -1;
-        for (const arr of points) {
-            idx++;
-            ctx.beginPath();
-            ctx.strokeStyle = ColorPalette.getColor(idx, 1);
-            let initialized: boolean = false;
-            let lastXP: [number, number] = [NaN, NaN];
-            for (const point of arr) {
-                if (!isFinite(point.x) || !isFinite(eOrP ? point.E : point.p) || (point.x === lastXP[0] && (eOrP ? point.E ===lastXP[1] : point.p === lastXP[1] )))
-                    continue;
-                lastXP = [point.x, eOrP ? point.E : point.p];
-                const x: number = ObservablesWidget.WIDTH_OFFSET + (point.x - xMin) / (xMax - xMin) * this.#width;
-                const p: number = ObservablesWidget.HEIGHT_OFFSET + (1-((eOrP ? point.E : point.p) - pMin) / (pMax - pMin)) * this.#height;
-                if (!initialized) {
-                    ctx.moveTo(x, p);
-                    initialized = true;
-                } else {
-                    ctx.lineTo(x, p);
-                }
-            }
-            ctx.stroke();
-        }
-        idx = -1;
-        for (const result of points) {
-            idx++;
-            const point = JsUtils.createElement("div", {parent: this.#container, classes: ["current-point", "position-absolute"]});
-            point.style.borderColor = ColorPalette.getColor(idx, 0);
-            this.#currentPoints.push(point);
-        }
-        // clear legend
-        for (const c of Array.from(this.#legendGrid.children)) {
-            c.remove();
-        }
-        idx = 0;
-        for (const result of [...qmResults, ...classicalResults].map(r => r.id)) {
-            const colorEl: HTMLElement = JsUtils.createElement("div", {parent: this.#legendGrid, html: "&#8212;"});
-            colorEl.style.color = ColorPalette.getColor(idx++, 0);
-            colorEl.style.fontSize = "24px";
-            const text: HTMLElement = JsUtils.createElement("div", {parent: this.#legendGrid, text: result});
-            JsUtils.createElement("div", {parent: this.#legendGrid});
-        }
-    }
-    */
-
     set(state: Array<SimulationSystem>): void {
         const minMax: {min: ExpectationValues; max: ExpectationValues;} = this.#currentMinMax;
         if (!minMax)
             return;
         const isP = this.#observableType === "p";
-        const xRange = [minMax.min.x, minMax.max.x];
-        const pRange = isP ? [minMax.min.p, minMax.max.p] : [minMax.min.E, minMax.max.E]
+        const xRange = this.#adaptedERange?.xRange || [minMax.min.x, minMax.max.x];
+        const pRange = this.#observableType === "p" ? [minMax.min.p, minMax.max.p] : 
+            (this.#adaptedERange?.eRange || [minMax.min.E, minMax.max.E])
         const points: Array<Partial<ExpectationValues>> = state.map(system => {
             const isQm: boolean = !!(system as QuantumSystem).psi;
             if (isQm)
@@ -619,31 +467,12 @@ export class ObservablesWidget extends HTMLElement implements QmWidget {
         });
     }
 
-    /*
-    nextOld(slices: [Timeslice, Timeslice|undefined][], points: Array<Point>): void {
-        this.#currentSlicesOld = slices;
-        this.#currentClassicalPointsOld = points;
-        // list of quantum expectation values <x>, <p> and classical points
-        const allPoints: Array<Point> = [...slices.map(s => s[0].observables), ...points]; 
-        const eOrP: boolean = this.energyOrMomentum;
-        allPoints.forEach((slice, idx) => {
-            if (this.#currentPoints.length <= idx)
-                return;
-            const x: number = slice.x;
-            const p: number = eOrP ? slice.E : slice.p;
-            // TODO what if p (E) is undefined?
-            const style: CSSStyleDeclaration = this.#currentPoints[idx].style;
-            // 5 is the border radius of the point div 
-            style.top = (ObservablesWidget.HEIGHT_OFFSET + (1-(p - this.#pRange[0]) / (this.#pRange[1]-this.#pRange[0])) * this.#height - 5) + "px";
-            style.left = (ObservablesWidget.WIDTH_OFFSET + (x - this.#xRange[0]) / (this.#xRange[1]-this.#xRange[0]) * this.#width - 5) + "px";
-        });
-    }
-    */
-
-    // TODO keepSlices!
+    // TODO keepSlices!?
     clear(keepSlices?: boolean): void {
         this.#canvas.getContext("2d").clearRect(0, 0, this.#canvas.width, this.#canvas.height);
         this.#currentPoints?.splice(0, this.#currentPoints?.length||0)?.forEach(p => p.remove());
+        this.#currentMinMax = undefined;
+        this.#currentParameters = undefined;
         for (const c of Array.from(this.#legendGrid.children)) {
             c.remove();
         }
