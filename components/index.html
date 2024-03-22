@@ -28,11 +28,14 @@
             <wavefunction-plot representation="x"></wavefunction-plot>
             <phase-space-density></phase-space-density>
             <wavefunction-plot representation="p"></wavefunction-plot>
+            <observables-widget observable-type="p"></observables-widget>
+            <observables-widget observable-type="E"></observables-widget>
         </div>
     </div>
     <script type="module">
         import { WaveFunctionPlot } from "./WaveFunctionPlot.js";
         import { PhaseSpaceDensityWidget } from "./PhaseSpaceDensityWidget.js";
+        import { ObservablesWidget } from "./ObservablesWidget.js";
         import { SimulationControls } from "./SimulationControls.js";
         import { SimulationController } from "./SimulationController.js";
         import { FileUpload } from "./FileUpload.js";
@@ -43,13 +46,15 @@
         SimulationControls.register();
         WaveFunctionPlot.register();
         PhaseSpaceDensityWidget.register();
+        ObservablesWidget.register();
 
         const upload = document.querySelector("wf-upload");
         const controls = document.querySelector("simulation-controls");
         const displayWidgets = () => {
             return [
                 ...Array.from(document.querySelectorAll("wavefunction-plot")),
-                ...Array.from(document.querySelectorAll("phase-space-density"))
+                ...Array.from(document.querySelectorAll("phase-space-density")),
+                ...Array.from(document.querySelectorAll("observables-widget")),
             ]
         };
         const controller = new SimulationController(controls, upload, displayWidgets, 

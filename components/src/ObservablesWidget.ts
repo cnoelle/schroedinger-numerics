@@ -1,6 +1,5 @@
-import { ColorPalette } from "./Color.js";
 import { JsUtils } from "./JsUtils.js";
-import { ClassicalSystem, ExpectationValues, QmWidget, QuantumSettings, QuantumSystem, SimulationParameters, SimulationResult, SimulationResultClassical, SimulationResultQm } from "./types.js";
+import { ClassicalSystem, ExpectationValues, QmWidget, QuantumSettings, QuantumSystem, SimulationParameters, SimulationResult, SimulationResultClassical, SimulationResultQm, SimulationSystem } from "./types.js";
 
 type MutableExpectationValues = {
     -readonly [K in keyof ExpectationValues]: ExpectationValues[K] 
@@ -24,7 +23,7 @@ export class ObservablesWidget extends HTMLElement implements QmWidget {
     }
 
     /**
-     * Call once to register the new tag type "<wavefunction-plot></wavefunction-plot>"
+     * Call once to register the new tag type "<observables-widget></observables-widget>"
      * @param tag 
      */
     static register(tag?: string) {
@@ -149,22 +148,14 @@ export class ObservablesWidget extends HTMLElement implements QmWidget {
     private static readonly HEIGHT_OFFSET: number = 50;
     private static readonly TICKS: number = 5;
 
-    #element: HTMLElement; // div
-    #container: HTMLElement;
-    #canvas: HTMLCanvasElement;
-    #legendGrid: HTMLElement;
+    readonly #canvas: HTMLCanvasElement;
+    readonly #container: HTMLElement;
+    readonly #legendGrid: HTMLElement;
     #currentPoints: Array<HTMLElement>|undefined; // one point per dataset
     #currentParameters: Array<SimulationParameters>|undefined;
     #currentMinMax: {min: ExpectationValues, max: ExpectationValues}|undefined;
     //#currentData: 
 
-
-    #currentDataOld: [Array<QuantumSimulationResult>, Array<ClassicalSimulationResult>]|undefined;
-    #currentSlicesOld: Array<[Timeslice, Timeslice|undefined]>|undefined;
-    #currentClassicalPointsOld: Array<Point>|undefined = undefined;
-
-    #width: number = ObservablesWidget.WIDTH;
-    #height: number = ObservablesWidget.HEIGHT;
     #ticks: number = ObservablesWidget.TICKS;
     #numDigitsX: number = 2;
     #numDigitsY: number = 2;
@@ -173,14 +164,13 @@ export class ObservablesWidget extends HTMLElement implements QmWidget {
 
     constructor() {
         super();
-        this.attachShadow({mode: "open"});
+        const shadow: ShadowRoot = this.attachShadow({mode: "open"});
 
         const style: HTMLStyleElement = document.createElement("style");
         style.textContent = ":host { position: relative; margin-left: 2em; /* min-width: 600px; */ ;} "
             + ".position-relative { position: relative; } " + 
             + ".legend-grid { display: grid; grid-template-columns: auto auto 1fr; align-items: center; column-gap: 1em; } " 
             + ".phase-space-legend { /*margin-bottom: 4em;*/ }";
-        const shadow: ShadowRoot = this.attachShadow({mode: "open"});
         shadow.append(style);
         this.#titleEl = JsUtils.createElement("h3", {text: "Energy", parent: shadow});
         const container: HTMLElement = JsUtils.createElement("div", {parent: shadow, classes: ["position-relative"]});
@@ -191,8 +181,9 @@ export class ObservablesWidget extends HTMLElement implements QmWidget {
         canvas.height = ObservablesWidget.HEIGHT + 2 * ObservablesWidget.HEIGHT_OFFSET;
 
 
-        const legend: HTMLElement = JsUtils.createElement("fieldset", { classes: ["phase-space-legend"]});
-        this.#element.parentElement.insertBefore(legend, this.#element.nextElementSibling);
+        const legend: HTMLElement = JsUtils.createElement("fieldset", { classes: ["phase-space-legend"], parent: shadow});
+        // TODO?
+        /*this.#element.parentElement.insertBefore(legend, this.#element.nextElementSibling);*/
         const legendTitle: HTMLElement = JsUtils.createElement("legend", {parent: legend, text: "Datasets"});
         const legendGrid: HTMLElement = JsUtils.createElement("div", {parent: legend, classes: ["legend-grid"]});
         this.#legendGrid = legendGrid;
@@ -246,24 +237,31 @@ export class ObservablesWidget extends HTMLElement implements QmWidget {
     }
 
     private _drawAxes(ctx: CanvasRenderingContext2D) {
+        const minMax: {min: ExpectationValues; max: ExpectationValues;} = this.#currentMinMax;
+        if (!minMax)
+            return;
+        const width = this.width;  // FIXME need to 
+        const height = this.height;
+        const xRange = [minMax.min.x, minMax.max.x];
+        const pRange = this.#observableType === "p" ? [minMax.min.p, minMax.max.p] : [minMax.min.E, minMax.max.E]
         const startX: number = 0;
-        const endX: number = this.#width + 2 * ObservablesWidget.WIDTH_OFFSET;
+        const endX: number = /*this.#width + 2 * ObservablesWidget.WIDTH_OFFSET*/ width;
         const usedStartX: number = ObservablesWidget.WIDTH_OFFSET;
-        const usedEndX: number = this.#width + ObservablesWidget.WIDTH_OFFSET;
-        const startY: number = this.#height + 2 * ObservablesWidget.HEIGHT_OFFSET;
+        const usedEndX: number = /*this.#width + ObservablesWidget.WIDTH_OFFSET*/ width - ObservablesWidget.WIDTH_OFFSET;
+        const startY: number = /*this.#height + 2 * ObservablesWidget.HEIGHT_OFFSET*/ height;
         const endY: number = 0;
-        const usedStartY: number = this.#height + ObservablesWidget.HEIGHT_OFFSET;
+        const usedStartY: number = /*this.#height + ObservablesWidget.HEIGHT_OFFSET*/ height - ObservablesWidget.HEIGHT_OFFSET;
         const usedEndY: number = ObservablesWidget.HEIGHT_OFFSET;
         ctx.strokeStyle = "black";
         // x axis
         ctx.beginPath();
-        ctx.moveTo(startX, this.#height + ObservablesWidget.HEIGHT_OFFSET);
-        ctx.lineTo(endX, this.#height + ObservablesWidget.HEIGHT_OFFSET);
+        ctx.moveTo(startX, usedStartY);
+        ctx.lineTo(endX, usedStartY);
            // arrow
-        ctx.moveTo(endX, this.#height + ObservablesWidget.HEIGHT_OFFSET);
-        ctx.lineTo(endX - ObservablesWidget.WIDTH_OFFSET/4, this.#height + ObservablesWidget.HEIGHT_OFFSET + ObservablesWidget.HEIGHT_OFFSET / 8);
-        ctx.moveTo(endX, this.#height + ObservablesWidget.HEIGHT_OFFSET);
-        ctx.lineTo(endX - ObservablesWidget.WIDTH_OFFSET/4, this.#height + ObservablesWidget.HEIGHT_OFFSET - ObservablesWidget.HEIGHT_OFFSET / 8);
+        ctx.moveTo(endX, usedStartY);
+        ctx.lineTo(endX - ObservablesWidget.WIDTH_OFFSET/4, usedStartY + ObservablesWidget.HEIGHT_OFFSET / 8);
+        ctx.moveTo(endX, usedStartY);
+        ctx.lineTo(endX - ObservablesWidget.WIDTH_OFFSET/4, usedStartY - ObservablesWidget.HEIGHT_OFFSET / 8);
         ctx.stroke();
         // y axis
         ctx.beginPath();
@@ -285,8 +283,8 @@ export class ObservablesWidget extends HTMLElement implements QmWidget {
         const tickLengthY: number = ObservablesWidget.WIDTH_OFFSET/5;
         for (let idx=1; idx<=ticks; idx++) {
             const x: number = usedStartX + idx * tickSpacingX;
-            ctx.moveTo(x, this.#height + ObservablesWidget.HEIGHT_OFFSET);
-            ctx.lineTo(x, this.#height + ObservablesWidget.HEIGHT_OFFSET + tickLengthX);
+            ctx.moveTo(x, usedStartY);
+            ctx.lineTo(x, usedStartY + tickLengthX);
             const y: number = usedStartY + idx * tickSpacingY;
             ctx.moveTo(ObservablesWidget.WIDTH_OFFSET, y);
             ctx.lineTo(ObservablesWidget.WIDTH_OFFSET-tickLengthY, y);
@@ -295,16 +293,16 @@ export class ObservablesWidget extends HTMLElement implements QmWidget {
         ctx.font = "16px serif";
         for (let idx=0; idx<=ticks; idx++) {
             const x: number = usedStartX + idx * tickSpacingX;
-            const value: number = this.#xRange[0] + idx / ticks * (this.#xRange[1] - this.#xRange[0]);
-            ctx.fillText(JsUtils.formatNumber(value, this.#numDigitsX), x - tickLengthY, this.#height + ObservablesWidget.HEIGHT_OFFSET + 2.5 * tickLengthX);
+            const value: number = xRange[0] + idx / ticks * (xRange[1] - xRange[0]);
+            ctx.fillText(JsUtils.formatNumber(value, this.#numDigitsX), x - tickLengthY, usedStartY + 2.5 * tickLengthX);
             const y: number = usedStartY + idx * tickSpacingY;
-            const valueY: number = this.#pRange[0] + idx/ticks * (this.#pRange[1] - this.#pRange[0]);
+            const valueY: number = pRange[0] + idx/ticks * (pRange[1] - pRange[0]);
             const yPositionOffset: number = idx === 0 ? -tickLengthY/2 : tickLengthY/2; // avoid overlap with x-axis
             ctx.fillText(JsUtils.formatNumber(valueY, this.#numDigitsY), ObservablesWidget.WIDTH_OFFSET - 4.5 * tickLengthY, y + yPositionOffset);
         }
         // axis labels
         ctx.font = "bold 20px serif";
-        ctx.fillText("x", this.#width + 2 * ObservablesWidget.WIDTH_OFFSET - 1.2 * tickLengthY, this.#height + ObservablesWidget.HEIGHT_OFFSET + 2 * tickLengthX);
+        ctx.fillText("x", width - 1.2 * tickLengthY, usedStartY + 2 * tickLengthX);
         ctx.fillText(this.#observableType === "p" ? "p" : "E", ObservablesWidget.WIDTH_OFFSET - 2.2 * tickLengthY, 1.4 * tickLengthX);
     }
 
@@ -377,6 +375,8 @@ export class ObservablesWidget extends HTMLElement implements QmWidget {
         const pMin: number = isP ? minMax.min.p : minMax.min.E;
         const pMax: number = isP ? minMax.max.p : minMax.max.E;
         let idx: number = -1;
+        const width = this.width - 2 * ObservablesWidget.WIDTH_OFFSET;
+        const height = this.height - 2 * ObservablesWidget.HEIGHT_OFFSET;
         for (const result of results) {
             idx++;
             const params: SimulationParameters = this.#currentParameters[idx];
@@ -390,8 +390,8 @@ export class ObservablesWidget extends HTMLElement implements QmWidget {
                 if (!isFinite(point.x) || !isFinite(isP ? point.p : point.E) || (point.x === lastXP[0] && (!isP ? point.E ===lastXP[1] : point.p === lastXP[1] )))
                     continue;
                 lastXP = [point.x, isP ? point.p : point.E];
-                const x: number = ObservablesWidget.WIDTH_OFFSET + (point.x - xMin) / (xMax - xMin) * this.#width;
-                const p: number = ObservablesWidget.HEIGHT_OFFSET + (1-((isP ? point.p : point.E) - pMin) / (pMax - pMin)) * this.#height;
+                const x: number = ObservablesWidget.WIDTH_OFFSET + (point.x - xMin) / (xMax - xMin) * width;
+                const p: number = ObservablesWidget.HEIGHT_OFFSET + (1-((isP ? point.p : point.E) - pMin) / (pMax - pMin)) * height;
                 if (!initialized) {
                     ctx.moveTo(x, p);
                     initialized = true;
@@ -421,6 +421,7 @@ export class ObservablesWidget extends HTMLElement implements QmWidget {
         });
     }
 
+    /*
     initializeOld(qmResults: QuantumSimulationResult[], classicalResults: Array<ClassicalSimulationResult>,
             keepSlices?: boolean,
             ranges?: {x?: [number, number], p?: [number, number]}): void {
@@ -547,7 +548,38 @@ export class ObservablesWidget extends HTMLElement implements QmWidget {
             JsUtils.createElement("div", {parent: this.#legendGrid});
         }
     }
+    */
 
+    set(state: Array<SimulationSystem>): void {
+        const minMax: {min: ExpectationValues; max: ExpectationValues;} = this.#currentMinMax;
+        if (!minMax)
+            return;
+        const isP = this.#observableType === "p";
+        const xRange = [minMax.min.x, minMax.max.x];
+        const pRange = isP ? [minMax.min.p, minMax.max.p] : [minMax.min.E, minMax.max.E]
+        const points: Array<Partial<ExpectationValues>> = state.map(system => {
+            const isQm: boolean = !!(system as QuantumSystem).psi;
+            if (isQm)
+                return (system as QuantumSystem).psi; // TODO phi expectation values?
+            return (system as ClassicalSystem).point; 
+        });
+        
+        const width = this.width - 2 * ObservablesWidget.WIDTH_OFFSET;
+        const height = this.height - 2 * ObservablesWidget.HEIGHT_OFFSET;
+        points.forEach((point, idx) => {
+            if (!(this.#currentPoints?.length > idx))
+                return;
+            const x: number = point.x;
+            const p: number = isP ? point.p : point.E;
+            // TODO what if p (E) is undefined?
+            const style: CSSStyleDeclaration = this.#currentPoints[idx].style;
+            // 5 is the border radius of the point div 
+            style.top = (ObservablesWidget.HEIGHT_OFFSET + (1-(p - pRange[0]) / (pRange[1]-pRange[0])) * height - 5) + "px";
+            style.left = (ObservablesWidget.WIDTH_OFFSET + (x - xRange[0]) / (xRange[1]-xRange[0]) * width - 5) + "px";
+        });
+    }
+
+    /*
     nextOld(slices: [Timeslice, Timeslice|undefined][], points: Array<Point>): void {
         this.#currentSlicesOld = slices;
         this.#currentClassicalPointsOld = points;
@@ -566,15 +598,12 @@ export class ObservablesWidget extends HTMLElement implements QmWidget {
             style.left = (ObservablesWidget.WIDTH_OFFSET + (x - this.#xRange[0]) / (this.#xRange[1]-this.#xRange[0]) * this.#width - 5) + "px";
         });
     }
+    */
 
+    // TODO keepSlices!
     clear(keepSlices?: boolean): void {
         this.#canvas.getContext("2d").clearRect(0, 0, this.#canvas.width, this.#canvas.height);
         this.#currentPoints?.splice(0, this.#currentPoints?.length||0)?.forEach(p => p.remove());
-        this.#currentDataOld = undefined;
-        if (!keepSlices) {
-            this.#currentSlicesOld = undefined;
-            this.#currentClassicalPointsOld = undefined;
-        }
         for (const c of Array.from(this.#legendGrid.children)) {
             c.remove();
         }
