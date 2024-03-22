@@ -104,7 +104,7 @@ export class ObservablesWidget extends HTMLElement implements QmWidget {
         switch (attr) {
         case "observable-type":
             if (newValue === "p" || newValue === "E")
-                this.#observableType = newValue;
+                this.observableType = newValue;
             break; 
         case "width":
         case "height":
@@ -137,7 +137,7 @@ export class ObservablesWidget extends HTMLElement implements QmWidget {
     readonly #titleEl: HTMLDivElement;
 
     private _setTitle() {
-        const title = this.getAttribute("title") || (this.#observableType === "p" ? "Momentum" : "Energy");
+        const title = this.getAttribute("title") || (this.#observableType === "p" ? "Phase Space" : "Energy");
         this.#titleEl.innerText = title;
     }
 
@@ -168,8 +168,9 @@ export class ObservablesWidget extends HTMLElement implements QmWidget {
 
         const style: HTMLStyleElement = document.createElement("style");
         style.textContent = ":host { position: relative; margin-left: 2em; /* min-width: 600px; */ ;} "
-            + ".position-relative { position: relative; } " + 
-            + ".legend-grid { display: grid; grid-template-columns: auto auto 1fr; align-items: center; column-gap: 1em; } " 
+            + ".position-relative { position: relative; } .position-absolute { position: absolute; } "
+            + ".legend-grid { display: grid; grid-template-columns: auto auto 1fr; align-items: center; column-gap: 1em; } "
+            + ".current-point { width: 0px; height: 0px; border: solid 5px red; border-radius: 5px; } "
             + ".phase-space-legend { /*margin-bottom: 4em;*/ }";
         shadow.append(style);
         this.#titleEl = JsUtils.createElement("h3", {text: "Energy", parent: shadow});
