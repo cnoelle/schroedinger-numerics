@@ -19,7 +19,7 @@ export class ObservablesWidget extends HTMLElement implements QmWidget {
 
     static get observedAttributes() {
         return ["width", "height", /* "wave-function-type", "representation", */
-            "observable-type", "title"]; 
+            "observable-type", "title", "show-legend"]; 
     }
 
     /**
@@ -47,6 +47,11 @@ export class ObservablesWidget extends HTMLElement implements QmWidget {
     */
     // TODO currently the x-axis always shows x, but we could also support other combinations
     #observableType: "p"|"E" = "E";
+    /**
+     * undefined (the default) means true for multiple simulation results and 
+     * false for a single result
+     */
+    #showLegend: boolean|undefined = undefined;
 
     set width(width: number) {
         this.#canvas.width = width;
@@ -70,6 +75,14 @@ export class ObservablesWidget extends HTMLElement implements QmWidget {
 
     get title(): string|undefined {
         return this.getAttribute("title") || undefined;
+    }
+
+    set showLegend(show: boolean|undefined) {
+        this.#showLegend = show;
+    }
+
+    get showLegend(): boolean|undefined {
+        return this.#showLegend;
     }
 
     /*
@@ -130,6 +143,16 @@ export class ObservablesWidget extends HTMLElement implements QmWidget {
         case "title":
             this._setTitle();
             break;
+        case "show-legend":
+            let value: boolean|undefined;
+            if (newValue === undefined || newValue === null || newValue === "" || newValue === "auto")
+                value = undefined;
+            else if (newValue.toLowerCase() === "true" || newValue.toLowerCase().startsWith("show"))
+                value = true;
+            else
+                value = false;
+            this.showLegend = value;
+            break;
         default:
         }
     }
@@ -151,6 +174,7 @@ export class ObservablesWidget extends HTMLElement implements QmWidget {
     readonly #canvas: HTMLCanvasElement;
     readonly #container: HTMLElement;
     readonly #legendGrid: HTMLElement;
+    readonly #legendContainer: HTMLElement;
     #currentPoints: Array<HTMLElement>|undefined; // one point per dataset
     #currentParameters: Array<SimulationParameters>|undefined;
     #currentMinMax: {min: ExpectationValues, max: ExpectationValues}|undefined;
@@ -167,14 +191,16 @@ export class ObservablesWidget extends HTMLElement implements QmWidget {
         const shadow: ShadowRoot = this.attachShadow({mode: "open"});
 
         const style: HTMLStyleElement = document.createElement("style");
-        style.textContent = ":host { position: relative; margin-left: 2em; /* min-width: 600px; */ ;} "
+        style.textContent = ":host { position: relative; margin-left: 2em; display: flex; /* min-width: 600px; */ ;} "
             + ".position-relative { position: relative; } .position-absolute { position: absolute; } "
+            + ".title-container {display: flex; flex-direction: column; align-items: center;} "
             + ".legend-grid { display: grid; grid-template-columns: auto auto 1fr; align-items: center; column-gap: 1em; } "
             + ".current-point { width: 0px; height: 0px; border: solid 5px red; border-radius: 5px; } "
-            + ".phase-space-legend { /*margin-bottom: 4em;*/ }";
+            + ".phase-space-legend { margin-bottom: 6em; align-self: end; }";
         shadow.append(style);
-        this.#titleEl = JsUtils.createElement("h3", {text: "Energy", parent: shadow});
-        const container: HTMLElement = JsUtils.createElement("div", {parent: shadow, classes: ["position-relative"]});
+        const titleContainer = JsUtils.createElement("div", {parent: shadow, classes: ["title-container"]});
+        this.#titleEl = JsUtils.createElement("h3", {text: "Energy", parent: titleContainer});
+        const container: HTMLElement = JsUtils.createElement("div", {parent: titleContainer, classes: ["position-relative"]});
 
         //const flexContainer: HTMLElement = JsUtils.createElement("div", {parent: container, classes: ["phase-space-container", "position-absolute"]});
         const canvas = JsUtils.createElement("canvas", {parent: container }); // TODO: class for width and height?
@@ -188,6 +214,8 @@ export class ObservablesWidget extends HTMLElement implements QmWidget {
         const legendTitle: HTMLElement = JsUtils.createElement("legend", {parent: legend, text: "Datasets"});
         const legendGrid: HTMLElement = JsUtils.createElement("div", {parent: legend, classes: ["legend-grid"]});
         this.#legendGrid = legendGrid;
+        this.#legendContainer = legend;
+        legend.hidden = true;
 
         this.#canvas = canvas;
         this.#container = container;
@@ -235,6 +263,16 @@ export class ObservablesWidget extends HTMLElement implements QmWidget {
         (window as any).sch = (window as any).sch || {};
         (window as any).sch[coordinate] = debug;
         */
+    }
+
+    private _setLegendVisibility() {
+        if (this.#showLegend === false)
+            this.#legendContainer.hidden = true;
+        else {
+            const l: number = this.#currentParameters?.length || 0;
+            const show: boolean = l > 1 || (l === 1 && this.#showLegend);
+            this.#legendContainer.hidden = !show;
+        }
     }
 
     private _drawAxes(ctx: CanvasRenderingContext2D) {
@@ -311,6 +349,7 @@ export class ObservablesWidget extends HTMLElement implements QmWidget {
         this.clear();  // keep slices?
         this.#currentParameters = [...settings];
         this.#currentMinMax = undefined;
+        this._setLegendVisibility();
     }
 
     private _minMax(values: Array<Partial<ExpectationValues>>): {min: ExpectationValues, max: ExpectationValues} {

@@ -55,19 +55,18 @@ export class PhaseSpaceDensityWidget extends HTMLElement implements QmWidget {
 
     constructor() {
         super();
+        const shadow: ShadowRoot = this.attachShadow({mode: "open"});
         // TODO react to size changes of the canvas
-        const initialWidth = parseInt(this.getAttribute("width")) || 512;
-        const initialHeight = parseInt(this.getAttribute("height")) || 512;
-        this.#canvas = document.createElement("canvas");
+        const initialWidth = parseInt(this.getAttribute("width")) || 576;
+        const initialHeight = parseInt(this.getAttribute("height")) || 576;
+        const style: HTMLStyleElement = JsUtils.createElement("style", {parent: shadow});
+        JsUtils.createElement("h3", {parent: shadow, text: "Phase space density"});
+        this.#canvas = JsUtils.createElement("canvas", {parent: shadow});
         this.#canvas.width = initialWidth;
         this.#canvas.height = initialHeight;
-        this.#offscreen = new OffscreenCanvas(initialWidth, initialHeight);
-        
-        const style: HTMLStyleElement = document.createElement("style");
-        style.textContent = ":host { position: relative; display: flex; align-items: end;}";
-        const shadow: ShadowRoot = this.attachShadow({mode: "open"});
-        shadow.appendChild(style);
-        shadow.appendChild(this.#canvas);
+        this.#offscreen = new OffscreenCanvas(initialWidth, initialHeight); 
+        style.textContent = ":host { position: relative; display: flex; flex-direction: column; "
+                + "justify-content: end; align-items: center;}";
     }
 
     connectedCallback() {
