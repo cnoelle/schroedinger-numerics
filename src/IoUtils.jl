@@ -104,8 +104,8 @@ end #_loadPotential
 function _writeComplexBinary(val::Complex, file::IO, binarySettings::BinarySettings)
     r::Real = (real(val) - binarySettings.minValue)/binarySettings.diff
     i::Real = (imag(val) - binarySettings.minValue)/binarySettings.diff
-    rb = convert(UInt8, floor(r * 255))
-    ib = convert(UInt8, floor(i * 255))
+    rb = trunc(UInt8, r * 255)
+    ib = trunc(UInt8, i * 255)
     write(file, rb)
     write(file, ib)
 end # writeComplexBinary
@@ -136,7 +136,7 @@ function _writePointsHeader(file::IO, points0::AbstractArray{<:Real, 1}, symbol:
         write(file, symbol)  # string 
         write(file, convert(UInt8, 0)) # null terminated
         write(file, "x")     # or "p"?  # 1 char, 1 byte
-        write(file, convert(Int64, length(points0))) # length, 8 bytes
+        write(file, convert(UInt32, length(points0))) # length, 8 bytes  # TODO control endianness
     end #if
     
     for point in points0
@@ -147,8 +147,8 @@ function _writePointsHeader(file::IO, points0::AbstractArray{<:Real, 1}, symbol:
         end # 
         if binary
             # TODO
-            pf = convert(Float64, point)
-            write(file, pf)  # always write as Float64, to ensure nothing gets lost
+            pf = convert(Float32, point)
+            write(file, pf)  # always write as Float32
         else
             write(file, "$(symbol)($(Printf.@sprintf("%.4g", point)))")
         end # if
@@ -174,10 +174,10 @@ function _writePointsLine(file::IO, waveFunction::AbstractWaveFunction, represen
         rMax = maximum(reals)
         iMin = minimum(imags)
         iMax = maximum(imags)
-        min0 = convert(Float64, minimum([rMin, iMin]))
-        max0 = convert(Float64, maximum([rMax, iMax]))
+        min0 = convert(Float32, minimum([rMin, iMin]))
+        max0 = convert(Float32, maximum([rMax, iMax]))
         binarySettings = BinarySettings(min0, max0)
-        # in each row, we start with the min max values as Float64
+        # in each row, we start with the min max values as Float32
         write(file, min0)
         write(file, max0)
     end

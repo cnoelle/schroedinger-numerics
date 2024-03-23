@@ -110,6 +110,13 @@ class FileImport {
     private static _parseWaveFunctionFile(file: File, progressReporter: AggregatingReporter, options?: {headerPrefix?: string}): Promise<[Array<number>, Array<Array<[number, number]>>]|undefined> {
         if (!file)
             return Promise.resolve(undefined);
+        if (file.name.toLowerCase().endsWith(".dat"))
+            return FileImport._parseWaveFunctionFileBinary(file, progressReporter, options);
+        else
+            return FileImport._parseWaveFunctionFileCsv(file, progressReporter, options);
+    }
+
+    private static _parseWaveFunctionFileCsv(file: File, progressReporter: AggregatingReporter, options?: {headerPrefix?: string}): Promise<[Array<number>, Array<Array<[number, number]>>]|undefined> {
         const headerPrefix: string = (options?.headerPrefix || "Psi") + "(";
         const reporter: ProgressSink = progressReporter.add();
         return new Promise((resolve, reject) => {
@@ -207,6 +214,68 @@ class FileImport {
                     reporter.progress(event.loaded, event.total);
             };
             reader.readAsText(file, "UTF-8");
+            reporter.started();
+        });
+    }
+
+    private static _parseWaveFunctionFileBinary(file: File, progressReporter: AggregatingReporter, options?: {headerPrefix?: string}): Promise<[Array<number>, Array<Array<[number, number]>>]|undefined> {
+        const headerPrefix: string = (options?.headerPrefix || "Psi") + "(";
+        const reporter: ProgressSink = progressReporter.add();
+        return new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = (event: ProgressEvent<FileReader>) => {
+                const result: ArrayBuffer = event.target.result as ArrayBuffer;
+                const decoder = new TextDecoder();
+                const magic = decoder.decode(result.slice(0, 12));
+                if (magic !== "schroedinger")
+                    throw new Error("Invalid wave function file " + file.name);
+                const asUint8 = new Uint8Array(result);
+                let symbol0: string|undefined;
+                let nulTerm: number = -1;
+                for (let idx=12; idx<result.byteLength; idx++) {
+                    if (asUint8[idx] == 0) {
+                        symbol0 = decoder.decode(result.slice(12, idx));
+                        nulTerm = idx;
+                        break;
+                    }
+                }
+                const rep: string = decoder.decode(result.slice(nulTerm+1, nulTerm+2));
+                const numPoints = new DataView(result, nulTerm + 2).getInt32(0, true);
+                const dataViewPoints: DataView = new DataView(result, nulTerm + 6);
+                const xs = new Array(numPoints);
+                for (let idx=0; idx<numPoints; idx++) {
+                    xs[idx] = dataViewPoints.getFloat32(4 * idx, true);
+                }
+                const dataView: DataView = new DataView(result, nulTerm + 6 + numPoints * 4);
+                // one row consists of two Float32 values (min, max) and numPoints * 2 bytes (real + imaginary part)
+                const singleRowLength: number = 8 + 2 * numPoints;
+                const expectedRows: number = dataView.byteLength / singleRowLength;
+                const values: Array<Array<[number, number]>> = [];
+                for (let row=0; row<expectedRows; row++) {
+                    const startByte = row * singleRowLength;
+                    const min = dataView.getFloat32(startByte, true);
+                    const max = dataView.getFloat32(startByte + 4, true);
+                    const points: Array<[number, number]> = new Array(numPoints);
+                    const pointsStartByte = startByte + 8;
+                    for (let idx=0; idx<numPoints; idx++) {
+                        // TODO convert to Float32 on the fly
+                        const realImag: [number, number] = [
+                            dataView.getUint8(pointsStartByte + 2 * idx),
+                            dataView.getUint8(pointsStartByte + 2 * idx + 1)
+                        ];
+                        points[idx] = realImag;
+                    }
+                    values.push(points);
+                }
+                reporter.isDone();
+                resolve([xs, values]);
+            };
+            reader.onerror = (event: ProgressEvent<FileReader>) => reject(event.target?.error || event);
+            reader.onprogress = (event: ProgressEvent<FileReader>) => {
+                if (event.lengthComputable) 
+                    reporter.progress(event.loaded, event.total);
+            };
+            reader.readAsArrayBuffer(file);
             reporter.started();
         });
     }
@@ -584,11 +653,11 @@ export class FileUpload extends HTMLElement {
         const uploadControl = JsUtils.createElement("div", {id: "uploadControl", classes: ["upload-control"],
                 parent: this.shadowRoot});
         const fileSelector = JsUtils.createElement("input", {attributes: new Map([["type", "file"], ["value", "Upload"], 
-                ["multiple", "multiple"], ["accept", ".csv,.json"]]), 
+                ["multiple", "multiple"], ["accept", ".csv,.json,.dat"]]), 
             id: "fileSelector", title: "Select result files for display", parent: uploadControl});        
         this.#fileSelector = fileSelector;
         const fileUpload = JsUtils.createElement("input", {attributes: new Map([["type", "button"], ["value", "Upload"], 
-                ["multiple", "multiple"], ["accept", ".csv,.json"], ["disabled", "disabled"]]),
+                ["multiple", "multiple"], ["disabled", "disabled"]]),
             id: "fileUpload", title: "Select files first", parent: uploadControl});
         this.#fileUpload = fileUpload;
         const progressOverlay = JsUtils.createElement("div", {classes: ["overlay"], id: "uploadProgress", 
@@ -631,17 +700,20 @@ export class FileUpload extends HTMLElement {
         if (this.#uploadRunning)
             return;
         const files: Array<File> = Array.from(this.#fileSelector.files)
-            .filter(fl => fl.name.toLowerCase().endsWith(".csv") || fl.name.toLowerCase().endsWith(".json"));
+            .filter(fl => fl.name.toLowerCase().endsWith(".csv") || 
+                    fl.name.toLowerCase().endsWith(".json") || 
+                    fl.name.toLowerCase().endsWith(".dat"));
         if (files.length === 0)
             return;
-        const psi: File|undefined = files.find(fl => fl.name.toLowerCase() === "psi.csv");
-        const psiP: File|undefined = files.find(fl => fl.name.toLowerCase() === "psip.csv");
+        const psi: File|undefined = files.find(fl => fl.name.toLowerCase() === "psi.csv" || fl.name.toLowerCase() === "psi.dat");
+        const psiP: File|undefined = files.find(fl => fl.name.toLowerCase() === "psip.csv" || fl.name.toLowerCase() === "psip.dat");
         const observables: File|undefined = files.find(fl => fl.name.toLowerCase() === "observables.csv");
         const settings: File|undefined = files.find(fl => fl.name.toLowerCase() === "settings.json");
         const points: File|undefined = files.find(fl => fl.name.toLowerCase() === "points.csv");
         // the three below are present for calculations in the residual rep only, besides all the other files
-        const psiTilde: File|undefined = files.find(fl => fl.name.toLowerCase() === "psitilde.csv" || fl.name.toLowerCase() === "phi.csv");
-        const phiP: File|undefined = files.find(fl => fl.name.toLowerCase() === "phip.csv");
+        const psiTilde: File|undefined = files.find(fl => fl.name.toLowerCase() === "psitilde.csv" || fl.name.toLowerCase() === "phi.csv"
+            || fl.name.toLowerCase() === "psitilde.dat" || fl.name.toLowerCase() === "phi.dat");
+        const phiP: File|undefined = files.find(fl => fl.name.toLowerCase() === "phip.csv" || fl.name.toLowerCase() === "phip.dat");
         const potential: File|undefined = files.find(fl => fl.name.toLowerCase() === "v_t.csv");
         const observablesQm: File|undefined = files.find(fl => fl.name.toLowerCase() === "observables.csv");
         const isQuantum: boolean = !!psi && !!observables;

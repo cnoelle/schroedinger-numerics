@@ -269,8 +269,8 @@ export class WaveFunctionPlot extends HTMLElement implements QmWidget {
             rangeField = rangeField + "P";
         const ranges0 = settings.map(s => (s as QuantumSettings).valueRange).filter(r => r);
         const ranges: Array<[number, number]> = ranges0.map(wfRanges => wfRanges[rangeField]);
-        const min = ranges.reduce((a,b) => Math.min(a, b[0]), 0);
-        const max = ranges.reduce((a,b) => Math.max(a, b[1]), 0);
+        const min = ranges.reduce((a,b) => b === undefined ? a : Math.min(a, b[0]), 0);
+        const max = ranges.reduce((a,b) => b === undefined ? a : Math.max(a, b[1]), 0);
         this.#yRange = [min, max];
         const isAbsolute = this.#absoluteValues;
 
