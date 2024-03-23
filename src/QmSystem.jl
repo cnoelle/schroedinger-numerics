@@ -102,15 +102,17 @@ end # _writeSettingsQm
 function trace(system::AbstractQmSystem, timeSteps::Int=1000; 
         folder::String = "./results", 
         momentumRepresentation::Union{MomentumRepresentation, Nothing}=nothing,
-        parameters::Union{Dict{String, Any}, Nothing}=nothing) # io::IO
+        parameters::Union{Dict{String, Any}, Nothing}=nothing,
+        binary::Bool=false) # io::IO
     rep::QmRepresentation = representation(system)
     if !(rep isa PositionRepresentation)
         throw(ErrorException("Can only handle position representation, currently")) # XXX
     end # if
     Base.Filesystem.mkpath(folder)
     settingsFile::String = joinpath(folder, "settings.json")
-    psiFile::String = joinpath(folder, "psi.csv")
-    psiPFile::String = isnothing(momentumRepresentation) ? nothing : joinpath(folder, "psiP.csv")
+    psiFile::String = joinpath(folder, binary ? "psi.dat" : "psi.csv")
+    psiPFile::Union{String,Nothing} = isnothing(momentumRepresentation) ? nothing : 
+        joinpath(folder, binary ? "psiP.dat" : "psiP.csv")
     observablesFile::String = joinpath(folder, "observables.csv")
     points0::AbstractArray{<:Real, 1} = rep.points
     x = XPolynomial([0., 1.])
@@ -124,14 +126,14 @@ function trace(system::AbstractQmSystem, timeSteps::Int=1000;
     open(observablesFile, "w") do fileObservables
     if !isnothing(psiPFile)
         fileP = open(psiPFile, "w")
-        _writePointsHeader(fileP, momentumRepresentation.points)
+        _writePointsHeader(fileP, momentumRepresentation.points, nothing, binary)
     end
-        _writePointsHeader(file, points0)
+        _writePointsHeader(file, points0, nothing, binary)
         _writeObservablesHeader(fileObservables)
         for _ in 1:timeSteps
             psi = getPsi(system)
             # write wave function values
-            _writePointsLine(file, psi, rep)
+            _writePointsLine(file, psi, rep, binary)
             # write expectation values
             xVal::Real = expectationValue(psi, x, rep)
             x2Val::Real = expectationValue(psi, x2, rep)
@@ -141,7 +143,7 @@ function trace(system::AbstractQmSystem, timeSteps::Int=1000;
             # Note: var(X) = x2Val - xVal^2
             _writeObservablesLine(fileObservables, xVal, x2Val, pVal, p2Val, energy)
             if !isnothing(psiPFile)
-                _writePointsLine(fileP, psi, momentumRepresentation)
+                _writePointsLine(fileP, psi, momentumRepresentation, binary)
             end
             system = propagate(system, 1)
         end # for k
