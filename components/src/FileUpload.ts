@@ -110,7 +110,10 @@ class FileImport {
     private static _parseWaveFunctionFile(file: File, progressReporter: AggregatingReporter, options?: {headerPrefix?: string}): Promise<[Array<number>, Array<Array<[number, number]>>]|undefined> {
         if (!file)
             return Promise.resolve(undefined);
-        if (file.name.toLowerCase().endsWith(".dat"))
+        const fl = file.name.toLowerCase();
+        if (fl.endsWith(".gz"))
+            return FileImport._parseWaveFunctionFileGzip(file, progressReporter, options);
+        else if (fl.endsWith(".dat"))
             return FileImport._parseWaveFunctionFileBinary(file, progressReporter, options);
         else
             return FileImport._parseWaveFunctionFileCsv(file, progressReporter, options);
@@ -218,7 +221,15 @@ class FileImport {
         });
     }
 
-    private static _parseWaveFunctionFileBinary(file: File, progressReporter: AggregatingReporter, options?: {headerPrefix?: string}): Promise<[Array<number>, Array<Array<[number, number]>>]|undefined> {
+    private static async _parseWaveFunctionFileGzip(file: File, progressReporter: AggregatingReporter, options?: {headerPrefix?: string}): Promise<[Array<number>, Array<Array<[number, number]>>]|undefined> {
+        const ds = new DecompressionStream("gzip");
+        const decompressedStream: ReadableStream<Uint8Array> = file.stream().pipeThrough(ds);
+        const blob: Blob = await new Response(decompressedStream).blob();
+        return FileImport._parseWaveFunctionFileBinary(blob, progressReporter, options);
+    }
+
+    private static _parseWaveFunctionFileBinary(file: Blob, progressReporter: AggregatingReporter, 
+            options?: {headerPrefix?: string}): Promise<[Array<number>, Array<Array<[number, number]>>]|undefined> {
         const headerPrefix: string = (options?.headerPrefix || "Psi") + "(";
         const reporter: ProgressSink = progressReporter.add();
         return new Promise((resolve, reject) => {
@@ -228,7 +239,7 @@ class FileImport {
                 const decoder = new TextDecoder();
                 const magic = decoder.decode(result.slice(0, 12));
                 if (magic !== "schroedinger")
-                    throw new Error("Invalid wave function file " + file.name);
+                    throw new Error("Invalid wave function file " + (!!(file as File).name ? (file as File).name : ""));
                 const asUint8 = new Uint8Array(result);
                 let symbol0: string|undefined;
                 let nulTerm: number = -1;
@@ -651,7 +662,7 @@ export class FileUpload extends HTMLElement {
         const uploadControl = JsUtils.createElement("div", {id: "uploadControl", classes: ["upload-control"],
                 parent: this.shadowRoot});
         const fileSelector = JsUtils.createElement("input", {attributes: new Map([["type", "file"], ["value", "Upload"], 
-                ["multiple", "multiple"], ["accept", ".csv,.json,.dat"]]), 
+                ["multiple", "multiple"], ["accept", ".csv,.json,.dat,.gz"]]), 
             id: "fileSelector", title: "Select result files for display", parent: uploadControl});        
         this.#fileSelector = fileSelector;
         const fileUpload = JsUtils.createElement("input", {attributes: new Map([["type", "button"], ["value", "Upload"], 
@@ -700,18 +711,19 @@ export class FileUpload extends HTMLElement {
         const files: Array<File> = Array.from(this.#fileSelector.files)
             .filter(fl => fl.name.toLowerCase().endsWith(".csv") || 
                     fl.name.toLowerCase().endsWith(".json") || 
-                    fl.name.toLowerCase().endsWith(".dat"));
+                    fl.name.toLowerCase().endsWith(".dat") || 
+                    fl.name.toLowerCase().endsWith(".dat.gz"));
         if (files.length === 0)
             return;
-        const psi: File|undefined = files.find(fl => fl.name.toLowerCase() === "psi.csv" || fl.name.toLowerCase() === "psi.dat");
-        const psiP: File|undefined = files.find(fl => fl.name.toLowerCase() === "psip.csv" || fl.name.toLowerCase() === "psip.dat");
+        const psi: File|undefined = files.find(fl => fl.name.toLowerCase().startsWith("psi."));
+        const psiP: File|undefined = files.find(fl => fl.name.toLowerCase().startsWith("psip.")); 
         const observables: File|undefined = files.find(fl => fl.name.toLowerCase() === "observables.csv");
         const settings: File|undefined = files.find(fl => fl.name.toLowerCase() === "settings.json");
         const points: File|undefined = files.find(fl => fl.name.toLowerCase() === "points.csv");
         // the three below are present for calculations in the residual rep only, besides all the other files
-        const psiTilde: File|undefined = files.find(fl => fl.name.toLowerCase() === "psitilde.csv" || fl.name.toLowerCase() === "phi.csv"
-            || fl.name.toLowerCase() === "psitilde.dat" || fl.name.toLowerCase() === "phi.dat");
-        const phiP: File|undefined = files.find(fl => fl.name.toLowerCase() === "phip.csv" || fl.name.toLowerCase() === "phip.dat");
+        const psiTilde: File|undefined = files.find(fl => fl.name.toLowerCase().startsWith("psitilde.") 
+            || fl.name.toLowerCase().startsWith("phi."));
+        const phiP: File|undefined = files.find(fl => fl.name.toLowerCase().startsWith("phip."));
         const potential: File|undefined = files.find(fl => fl.name.toLowerCase() === "v_t.csv");
         const observablesQm: File|undefined = files.find(fl => fl.name.toLowerCase() === "observables.csv");
         const isQuantum: boolean = !!psi && !!observables;
