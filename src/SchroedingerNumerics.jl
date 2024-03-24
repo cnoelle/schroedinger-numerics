@@ -3,6 +3,7 @@ import LinearAlgebra
 import Printf
 import JSON
 import Base.values
+import CodecZlib
 
 # imports are listed in order of dependencies; lower files may depend on upper files
 include("./SchroedingerConfig.jl")

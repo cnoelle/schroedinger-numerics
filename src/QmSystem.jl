@@ -103,7 +103,8 @@ function trace(system::AbstractQmSystem, timeSteps::Int=1000;
         folder::String = "./results", 
         momentumRepresentation::Union{MomentumRepresentation, Nothing}=nothing,
         parameters::Union{Dict{String, Any}, Nothing}=nothing,
-        binary::Bool=false) # io::IO
+        binary::Bool=false,
+        compress::Bool=false) # io::IO
     rep::QmRepresentation = representation(system)
     if !(rep isa PositionRepresentation)
         throw(ErrorException("Can only handle position representation, currently")) # XXX
@@ -113,6 +114,12 @@ function trace(system::AbstractQmSystem, timeSteps::Int=1000;
     psiFile::String = joinpath(folder, binary ? "psi.dat" : "psi.csv")
     psiPFile::Union{String,Nothing} = isnothing(momentumRepresentation) ? nothing : 
         joinpath(folder, binary ? "psiP.dat" : "psiP.csv")
+    if compress
+        psiFile = psiFile * ".gz"
+        if !isnothing(psiPFile)
+            psiPFile = psiPFile * ".gz"
+        end
+    end
     observablesFile::String = joinpath(folder, "observables.csv")
     points0::AbstractArray{<:Real, 1} = rep.points
     x = XPolynomial([0., 1.])
@@ -122,10 +129,17 @@ function trace(system::AbstractQmSystem, timeSteps::Int=1000;
     open(settingsFile, "w") do settingsFile1
         _writeSettingsQm(system, settingsFile1, parameters=parameters)
     end # settingsFile
-    open(psiFile, "w") do file
+    #open(psiFile, "w") do file
+    file = open(psiFile, "w")
+    if compress
+        file = CodecZlib.GzipCompressorStream(file)
+    end # 
     open(observablesFile, "w") do fileObservables
     if !isnothing(psiPFile)
         fileP = open(psiPFile, "w")
+        if compress
+            fileP = CodecZlib.GzipCompressorStream(fileP)
+        end # 
         _writePointsHeader(fileP, momentumRepresentation.points, nothing, binary)
     end
         _writePointsHeader(file, points0, nothing, binary)
@@ -151,7 +165,8 @@ function trace(system::AbstractQmSystem, timeSteps::Int=1000;
         close(fileP)
     end
     end # open fileObservables
-    end # open file
+    #end # open file
+    close(file)
     return system
     
 end # trace
