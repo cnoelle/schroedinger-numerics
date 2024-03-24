@@ -1,12 +1,6 @@
 struct BinarySettings
-    minValue::Real
     maxValue::Real
-    diff::Real
-    function BinarySettings(minValue::Real, maxValue::Real)
-        return new(minValue, maxValue, maxValue-minValue)
-    end # constructor
 end # BinarySettings
-
 
 function _schemeToJson(scheme::NumericsScheme)::String
     return "{\"id\": \"$(schemeId(scheme))\" $(_serializeScheme(scheme))}"
@@ -102,12 +96,11 @@ function _loadPotential(dict::Dict{String, Any})::AbstractXFunction
 end #_loadPotential
 
 function _writeComplexBinary(val::Complex, file::IO, binarySettings::BinarySettings)
-    r::Real = (real(val) - binarySettings.minValue)/binarySettings.diff
-    i::Real = (imag(val) - binarySettings.minValue)/binarySettings.diff
-    rb = trunc(UInt8, r * 255)
-    ib = trunc(UInt8, i * 255)
-    write(file, rb)
-    write(file, ib)
+    r::Real = real(val)/binarySettings.maxValue * 127  # value range -127..127, 0=0
+    i::Real = imag(val)/binarySettings.maxValue * 127
+    rb = trunc(Int8, r)
+    ib = trunc(Int8, i)
+    write(file, rb, ib)
 end # writeComplexBinary
 
 function _writeComplex(val::Complex, file::IO) 
@@ -136,7 +129,7 @@ function _writePointsHeader(file::IO, points0::AbstractArray{<:Real, 1}, symbol:
         write(file, symbol)  # string 
         write(file, convert(UInt8, 0)) # null terminated
         write(file, "x")     # or "p"?  # 1 char, 1 byte
-        write(file, convert(UInt32, length(points0))) # length, 8 bytes  # TODO control endianness
+        write(file, convert(UInt32, length(points0))) # length, 4 bytes  # TODO control endianness
     end #if
     
     for point in points0
@@ -174,12 +167,10 @@ function _writePointsLine(file::IO, waveFunction::AbstractWaveFunction, represen
         rMax = maximum(reals)
         iMin = minimum(imags)
         iMax = maximum(imags)
-        min0 = convert(Float32, minimum([rMin, iMin]))
-        max0 = convert(Float32, maximum([rMax, iMax]))
-        binarySettings = BinarySettings(min0, max0)
+        maxVal = maximum([rMax, iMax, -rMin, -iMin])
+        binarySettings = BinarySettings(maxVal)
         # in each row, we start with the min max values as Float32
-        write(file, min0)
-        write(file, max0)
+        write(file, convert(Float32, maxVal))
     end
     # TODO normalize?
     for value in vals

@@ -204,8 +204,9 @@ export class PhaseSpaceDensityWidget extends HTMLElement implements QmWidget {
                 (result as any as QuantumSystemResidual).phi : result.psi;
             const wavefunctionP: WaveFunctionData = this.#waveFunctionType === "phi" ? 
                 (result as any as QuantumSystemResidual).phiP : result.psiP;
-            if (!wavefunctionX || !wavefunctionP)
+            if (!wavefunctionX || !wavefunctionP) {
                 continue;
+            }
             const x = wavefunctionX.basePoints;
             const p = wavefunctionP.basePoints;
             const xLength = x.length;

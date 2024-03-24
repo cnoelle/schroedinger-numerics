@@ -1,6 +1,4 @@
 import uPlot, { AlignedData, Options, Series } from "uplot";
-//import "../node_modules/uplot/dist/uPlot.min.css";
-//import { ColorPalette } from "./colorPalette.js";
 import { JsUtils } from "./JsUtils.js";
 import { ClassicalSettings, Coordinates, QmWidget, QuantumSettings, QuantumSystem, QuantumSystemResidual, SimulationParameters, SimulationSystem, WaveFunctionData } from "./types.js";
 
@@ -188,14 +186,6 @@ export class WaveFunctionPlot extends HTMLElement implements QmWidget {
         this.attachShadow({mode: "open"});
         this.#element = JsUtils.createElement("div", {parent: this.shadowRoot});
         JsUtils.loadCss("./assets/css/uPlot.min.css", {parent: this.#element});
-        // for debugging  // TODO elsewhere
-        /*
-        (window as any).sch = (window as any).sch || {};
-        const debugId: string = this.secondary ? "Phi" : "psi";
-        (window as any).sch[debugId] = this.#chart; 
-        */
-        // on this object we can use the uPlot API, see https://github.com/leeoniya/uPlot/blob/master/dist/uPlot.d.ts
-        // e.g. window.sch.psi.setSize({width: 640, height: 480})
     }
 
     private _getRange() {
@@ -268,7 +258,12 @@ export class WaveFunctionPlot extends HTMLElement implements QmWidget {
         if (this.#representation === "p")
             rangeField = rangeField + "P";
         const ranges0 = settings.map(s => (s as QuantumSettings).valueRange).filter(r => r);
-        const ranges: Array<[number, number]> = ranges0.map(wfRanges => wfRanges[rangeField]);
+        const ranges: Array<[number, number]|undefined> = ranges0.map(wfRanges => wfRanges[rangeField]);
+        if (ranges.find(r => r !== undefined) === undefined) {
+            this.clear();
+            return;
+        }
+        this.hidden = false;
         const min = ranges.reduce((a,b) => b === undefined ? a : Math.min(a, b[0]), 0);
         const max = ranges.reduce((a,b) => b === undefined ? a : Math.max(a, b[1]), 0);
         this.#yRange = [min, max];
@@ -368,25 +363,18 @@ export class WaveFunctionPlot extends HTMLElement implements QmWidget {
         this.#chart.setData(this.#chart.series.map(() => []) as any);
     }
 
-    /*
-    scale(scale: number): void {
-        this.#yRange = scale;
-    }
-    */
-
-    set(state: Array<
-             QuantumSystem&{psiCoordinates: Coordinates}
-            |QuantumSystemResidual&{psiCoordinates: Coordinates; phiCoordinates: Coordinates}
-        >): void {
+    set(state: Array<QuantumSystem|QuantumSystemResidual>): void {
         // @ts-ignore
         state = state.filter(s => this.#waveFunctionType === "phi" ? !!s.phi : !!s.psi);
         if (!(state.length > 0) || !this.#chart)
             return;
         const coords: Array<Array<number>> = this.#representation === "p" ?
             // @ts-ignore
-            state.map(s => this.#waveFunctionType === "phi" ? s.phiP.basePoints : s.psiP.basePoints) :
+            state.map(s => this.#waveFunctionType === "phi" ? s.phiP?.basePoints : s.psiP?.basePoints) :
             // @ts-ignore
-            state.map(s => this.#waveFunctionType === "phi" ? s.phi.basePoints : s.psi.basePoints);
+            state.map(s => this.#waveFunctionType === "phi" ? s.phi?.basePoints : s.psi?.basePoints);
+        if (!coords)
+            return;
         // @ts-ignore
         //const coordinates: Array<Coordinates> = state.map(s => this.#waveFunctionType === "phi" ? s.phiCoordinates : s.psiCoordinates);
         //const coords: Array<Array<number>> = coordinates.map(c => this.#representation === "p" ? c.p : c.x);
@@ -472,6 +460,7 @@ export class WaveFunctionPlot extends HTMLElement implements QmWidget {
     }
 
     clear(): void {
+        this.hidden = true;
         if (!this.#chart)
             return;
         // remove old series

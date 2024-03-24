@@ -240,28 +240,26 @@ class FileImport {
                     }
                 }
                 const rep: string = decoder.decode(result.slice(nulTerm+1, nulTerm+2));
-                const numPoints = new DataView(result, nulTerm + 2).getInt32(0, true);
+                const numPoints = new DataView(result, nulTerm + 2).getUint32(0, true);
                 const dataViewPoints: DataView = new DataView(result, nulTerm + 6);
                 const xs = new Array(numPoints);
                 for (let idx=0; idx<numPoints; idx++) {
                     xs[idx] = dataViewPoints.getFloat32(4 * idx, true);
                 }
                 const dataView: DataView = new DataView(result, nulTerm + 6 + numPoints * 4);
-                // one row consists of two Float32 values (min, max) and numPoints * 2 bytes (real + imaginary part)
-                const singleRowLength: number = 8 + 2 * numPoints;
+                // one row consists of a Float32 value (max absolute value) and numPoints * 2 bytes (real + imaginary part)
+                const singleRowLength: number = 4 + 2 * numPoints;
                 const expectedRows: number = dataView.byteLength / singleRowLength;
                 const values: Array<Array<[number, number]>> = [];
                 for (let row=0; row<expectedRows; row++) {
                     const startByte = row * singleRowLength;
-                    const min = dataView.getFloat32(startByte, true);
-                    const max = dataView.getFloat32(startByte + 4, true);
+                    const max = dataView.getFloat32(startByte, true);
                     const points: Array<[number, number]> = new Array(numPoints);
-                    const pointsStartByte = startByte + 8;
+                    const pointsStartByte = startByte + 4;
                     for (let idx=0; idx<numPoints; idx++) {
-                        // TODO convert to Float32 on the fly
                         const realImag: [number, number] = [
-                            dataView.getUint8(pointsStartByte + 2 * idx),
-                            dataView.getUint8(pointsStartByte + 2 * idx + 1)
+                            dataView.getInt8(pointsStartByte + 2 * idx)/127 * max,
+                            dataView.getInt8(pointsStartByte + 2 * idx + 1)/127 * max
                         ];
                         points[idx] = realImag;
                     }
