@@ -1,4 +1,4 @@
-import { ClassicalSettings, ClassicalSystem, ExpectationValues, PhaseSpacePoint, QuantumSettings, QuantumSystem, QuantumSystemResidual, SimulationParameters, SimulationResult, SimulationResultClassical, SimulationResultQm, WaveFunctionData } from "./types.js";
+import { ClassicalSettings, ClassicalSystem, ExpectationValues, PhaseSpacePoint, QuantumSettings, QuantumSystem, QuantumSystemResidual, SimulationParameters, SimulationResult, SimulationResultClassical, SimulationResultQm, SimulationSettings, WaveFunctionData } from "./types.js";
 import { JsUtils } from "./JsUtils.js";
 
 class FileImport {
@@ -286,48 +286,57 @@ class FileImport {
         });
     }
 
+    static parseObservablesFileInternal(
+            result: string,
+            resolve: (result: Array<ExpectationValues>) => void, 
+            reject: (error: any) => void,
+            progressReporter: ProgressSink,
+            options?: {requireSquareValues?: boolean}) {
+        const header: [Array<string>, number]|null = FileImport._nextRow(result, 0, 2);
+        if (!header) {
+            reject(new Error("Wave function file does not contain any data"));
+            return;
+        }
+        const x: number = header[0].indexOf("x");
+        const p: number = header[0].indexOf("p");
+        const x2: number = header[0].indexOf("x^2");
+        const p2: number = header[0].indexOf("p^2");
+        const E: number = header[0].indexOf("E");
+        if (x < 0 || p<0 || options?.requireSquareValues && (x2 < 0 || p2< 0)) {
+            reject(new Error("Observables file does not provide all required observables; header: " + JSON.stringify(header[1])));
+            return;
+        }
+        const exp: Array<ExpectationValues> = [];
+        let start: number = header[1];
+        while (true) {
+            const line0: [Array<string>, number]|null = FileImport._nextRow(result, start, 4);
+            if (!line0)
+                break;
+            start = line0[1];
+            const line: Array<string> = line0[0];
+            const e: ExpectationValues = {
+                x: parseFloat(line[x]),
+                p: parseFloat(line[p]),
+                x2: x2 < 0 ? undefined : parseFloat(line[x2]),
+                p2: p2 < 0 ? undefined : parseFloat(line[p2]),
+                E: E >= 0 ? parseFloat(line[E]) || 1 : 1 // FIXME no default value
+            }
+            exp.push(e);
+        }
+        progressReporter.isDone();
+        resolve(exp);
+
+    }
+
     private static _parseObservablesFile(file: File, progressReporter: AggregatingReporter): Promise<Array<ExpectationValues>|undefined> {
         if (!file)
             return Promise.resolve(undefined);
         const reporter: ProgressSink = progressReporter.add();
         return new Promise((resolve, reject) => {
             const reader = new FileReader();
-            reader.onload = (event: ProgressEvent<FileReader>) => {
-                const result: string = event.target.result as string;
-                const header: [Array<string>, number]|null = FileImport._nextRow(result, 0, 2);
-                if (!header) {
-                    reject(new Error("Wave function file does not contain any data"));
-                    return;
-                }
-                const x: number = header[0].indexOf("x");
-                const p: number = header[0].indexOf("p");
-                const x2: number = header[0].indexOf("x^2");
-                const p2: number = header[0].indexOf("p^2");
-                const E: number = header[0].indexOf("E");
-                if (x < 0 || p<0 || x2 < 0 || p2< 0) {
-                    reject(new Error("Observables file does not provide all required observables; header: " + JSON.stringify(header[1])));
-                    return;
-                }
-                const exp: Array<ExpectationValues> = [];
-                let start: number = header[1];
-                while (true) {
-                    const line0: [Array<string>, number]|null = FileImport._nextRow(result, start, 4);
-                    if (!line0)
-                        break;
-                    start = line0[1];
-                    const line: Array<string> = line0[0];
-                    const e: ExpectationValues = {
-                        x: parseFloat(line[x]),
-                        p: parseFloat(line[p]),
-                        x2: parseFloat(line[x2]),
-                        p2: parseFloat(line[p2]),
-                        E: E >= 0 ? parseFloat(line[E]) || 1 : 1 // FIXME no default value
-                    }
-                    exp.push(e);
-                }
-                reporter.isDone();
-                resolve(exp);
-            };
+            reader.onload = (event: ProgressEvent<FileReader>) =>
+                FileImport.parseObservablesFileInternal(event.target.result as string, 
+                        resolve, reject, reporter, {requireSquareValues: true});
             reader.onerror = reject;
             reader.onprogress = (event: ProgressEvent<FileReader>) => {
                 if (event.lengthComputable) 
@@ -823,6 +832,7 @@ export class StaticResourcesImport extends HTMLElement {
 
     readonly #container: HTMLElement;
     readonly #selector: HTMLSelectElement;
+    readonly #progressReporter: ProgressSink;
     #uploadRunning: boolean = false;
 
     constructor() {
@@ -848,6 +858,23 @@ export class StaticResourcesImport extends HTMLElement {
         button.addEventListener("click", () => this._load());
         this.#container = container;
         this.#selector = select;
+        // TODO
+        this.#progressReporter = {
+            started() {
+                //progressOverlay.hidden = false;
+            },
+            progress(done: number, total: number) {
+                const progress: number = total > 0 ? done / total : 0;
+                //progressEl.value = progress * 100;
+            }, 
+            isDone() {
+                //progressOverlay.hidden = true;
+            },
+            error(reason?: any) {
+                console.error("Error uploading files", reason);
+                //progressOverlay.hidden = false;
+            }   
+        };
     }
 
     attributeChangedCallback(name: string, oldValue: string|null, newValue: string|null) {
@@ -875,12 +902,14 @@ export class StaticResourcesImport extends HTMLElement {
             = this.#index.datasetGroups.flatMap(g => g.datasets).find(ds => ds.id === selectedValue);
         if (!selected || this.#uploadRunning)
             return;
+        const reporter: AggregatingReporter = new AggregatingReporter(this.#progressReporter);
         this.#uploadRunning = true;
         try {
-            const results = await this._loadInternal(selected);
+            const results = await this._loadInternal(selected, reporter);
             this.dispatchEvent(new CustomEvent<SimulationResult>("upload", {detail: results}));
         } catch(e) {
             console.error("Failed to upload results", e);  // TODO show to user
+            reporter.error(e);
             this.dispatchEvent(new CustomEvent<Error>("error", {detail: new Error("Failed to upload results " + e)}));
         } finally {
             this.#uploadRunning = false;
@@ -888,7 +917,61 @@ export class StaticResourcesImport extends HTMLElement {
 
     }
 
-    private _loadInternal(dataset: RemoteDataset): Promise<SimulationResult> {
+    private static _concat(url: string, file: string): string {
+        if (!url)
+            return file;
+        const endsWith = url.endsWith("/");
+        const startsWith = file.startsWith("/");
+        if (endsWith && startsWith)
+            file = file.substring(1);
+        else if (!endsWith && !startsWith)
+            file = "/" + file;
+        return url + file;
+    }
+
+    private static _getTextFile(url: string, type: "json"|"csv"): Promise<string|any> {        
+        return fetch(url, {headers: {Accept: type === "json" ? "application/json" : "text/csv"}})
+            .then(async result => {
+                if (!result.ok) {
+                    const t = await result.text();
+                    let msg = "Failed to download index from " + url + ": " + result.status + ", " + result.statusText;
+                    if (t)
+                        msg += " (" + t + ")";
+                    throw new Error(t);
+                }
+                return type === "json" ? result.json() : result.text();
+            });
+    }
+
+    // TODO support more file types, create solution, etc
+    private async _loadInternal(dataset: RemoteDataset, progressReporter: AggregatingReporter): Promise<SimulationResult> {
+        const url: string = dataset.baseUrl;
+        const promises: Array<Promise<any>> = [];
+        const settingsUrl = StaticResourcesImport._concat(url, dataset.settings);
+        const settingsReporter = progressReporter.add();
+        settingsReporter.started();
+        const settingsPromise: Promise<SimulationSettings> 
+            = StaticResourcesImport._getTextFile(settingsUrl, "json");
+        settingsPromise.then(() => settingsReporter.isDone());
+        promises.push(settingsPromise);
+        if (dataset.trajectory) {
+            const trajectoryUrl = StaticResourcesImport._concat(url, dataset.trajectory);
+            const reporterTraj = progressReporter.add();
+            const trajectoryPromise = new Promise((resolve, reject) => {
+                const content: Promise<string> = StaticResourcesImport._getTextFile(trajectoryUrl, "csv");
+                content
+                    .then(content0 => FileImport.parseObservablesFileInternal(content0, resolve, reject, reporterTraj))
+                    .catch(e => reject(e));
+            });
+            promises.push(trajectoryPromise);
+        } else {
+            promises.push(Promise.resolve(undefined));
+        }
+        const results = await Promise.all(promises);
+        const settings: SimulationSettings = results[0];
+        const trajectory: Array<ExpectationValues>|undefined = results[1];
+        console.log("settings", settings, "trajectory", trajectory);
+        // TODO
         throw new Error("not implemented");
     }
 
