@@ -1,9 +1,6 @@
 import { ClassicalSettings, ClassicalSystem, ExpectationValues, PhaseSpacePoint, QuantumSettings, QuantumSystem, QuantumSystemResidual, SimulationParameters, SimulationResult, SimulationResultClassical, SimulationResultQm, WaveFunctionData } from "./types.js";
 import { JsUtils } from "./JsUtils.js";
 
-/**
- * TODO add psiP and phiP files
- */
 class FileImport {
 
     private static _nextRow(str: string, start: number, minExpectedEntries?: number): [Array<string>, number]|null {
@@ -598,7 +595,7 @@ export class FileUpload extends HTMLElement {
     }
 
     /**
-     * Call once to register the new tag type "<phase-space-density></phase-space-density>"
+     * Call once to register the new tag type "<wf-upload></wf-upload>"
      * @param tag 
      */
     static register(tag?: string) {
@@ -746,12 +743,8 @@ export class FileUpload extends HTMLElement {
             const resultsClassical = isClassical ? await FileImport.parseClassicalFiles(reporter, id, points, settings) : undefined;
             const resultsQm = isQuantum ? await FileImport.parseQmFiles(reporter, id, psi, observables, settings, psiP, psiTilde, phiP, observablesQm, potential, resultsClassical) : undefined;
             const results = isQuantum && isClassical ? {...resultsQm, classicalTrajectory: resultsClassical} : isQuantum ? resultsQm : resultsClassical;
-            // TODO consume the event
             this.dispatchEvent(new CustomEvent<SimulationResult>("upload", {detail: results}));
-
-            //this.#simulationController.addResultSet(results); // TODO
-            //hideShowMenu(false); // TODO
-        } catch(e) {  // TODO dispatch event as well?
+        } catch(e) {
             console.error("Failed to upload results", e);  // TODO show to user
             this.dispatchEvent(new CustomEvent<Error>("error", {detail: new Error("Failed to upload results " + e)}));
         } finally {
@@ -760,3 +753,198 @@ export class FileUpload extends HTMLElement {
     }
 
 }
+
+export interface LabeledItem {
+    id: string;
+    label?: string;
+    description?: string;
+}
+
+export interface RemoteDataset extends LabeledItem {
+    baseUrl: string;
+    settings: string;
+    trajectory?: string;
+    psi?: string;
+    psiP?: string;
+    phi?: string;
+    phiP?: string;
+    expectationValues?: string;
+}
+
+export interface DatasetGroup extends LabeledItem {
+    datasets: Array<RemoteDataset>;
+}
+
+export interface DatasetIndex {
+    datasetGroups: Array<DatasetGroup>;
+}
+
+// TODO show spinner on load?
+export class StaticResourcesImport extends HTMLElement {
+
+    private static DEFAULT_TAG: string = "static-resources-import";
+    private static _tag: string|undefined;
+
+    static get observedAttributes(): Array<string> {
+        return ["index-url"]; 
+    }
+
+    /**
+     * Call once to register the new tag type "<static-resources-import></static-resources-import>"
+     * @param tag 
+     */
+    static register(tag?: string) {
+        tag = tag || StaticResourcesImport.DEFAULT_TAG;
+        if (tag !== StaticResourcesImport._tag) {
+            customElements.define(tag, StaticResourcesImport);
+            StaticResourcesImport._tag = tag;
+        }
+    }
+
+    /**
+     * Retrieve the registered tag type for this element type, or undefined if not registered yet.
+     */
+    static tag(): string|undefined {
+        return StaticResourcesImport._tag;
+    }
+
+    #indexUrl: string|undefined;
+    #connected: boolean = false;
+    #index: DatasetIndex|undefined;
+
+    set indexUrl(url: string|undefined) {
+        this.#indexUrl = url;
+        this._retrieveIndex();
+    }
+
+    get indexUrl(): string|undefined {
+        return this.#indexUrl;
+    }
+
+    readonly #container: HTMLElement;
+    readonly #selector: HTMLSelectElement;
+    #uploadRunning: boolean = false;
+
+    constructor() {
+        super();
+        const shadow: ShadowRoot = this.attachShadow({mode: "open"});
+
+        const style: HTMLStyleElement = document.createElement("style");
+        style.textContent = ":host { position: relative; } "
+            + ".import-container {display: flex; column-gap: 1em;} "
+            + ".import-container[hidden] {display: none; }";
+        shadow.append(style);
+        const container = JsUtils.createElement("div", {parent: shadow, classes: ["import-container"],
+            attributes: new Map([["hidden", "true"]])})
+
+        const title = JsUtils.createElement("div", {parent: container, text: "Dataset", 
+            title: "Load a pre-configured dataset"});
+
+        const select = JsUtils.createElement("select", {parent: container, title: "Select a pre-configured dataset"});
+        const button = JsUtils.createElement("button", {parent: container, text: "Load", title: "Load dataset"});
+        button.disabled = !select.value;
+        select.addEventListener("change", 
+            event => button.disabled = !((event.currentTarget as HTMLSelectElement).value));
+        button.addEventListener("click", () => this._load());
+        this.#container = container;
+        this.#selector = select;
+    }
+
+    attributeChangedCallback(name: string, oldValue: string|null, newValue: string|null) {
+        const attr: string = name.toLowerCase();
+        switch (attr) {
+        case "index-url":
+            this.indexUrl = newValue || undefined;
+            break; 
+        }
+    }
+
+
+    connectedCallback() {
+        this.#connected = true;
+        this._retrieveIndex();
+    }
+
+    disconnectedCallback() {
+        this.#connected = false;
+    }
+
+    private async _load() {
+        const selectedValue = this.#selector.value;
+        const selected: RemoteDataset|undefined 
+            = this.#index.datasetGroups.flatMap(g => g.datasets).find(ds => ds.id === selectedValue);
+        if (!selected || this.#uploadRunning)
+            return;
+        this.#uploadRunning = true;
+        try {
+            const results = await this._loadInternal(selected);
+            this.dispatchEvent(new CustomEvent<SimulationResult>("upload", {detail: results}));
+        } catch(e) {
+            console.error("Failed to upload results", e);  // TODO show to user
+            this.dispatchEvent(new CustomEvent<Error>("error", {detail: new Error("Failed to upload results " + e)}));
+        } finally {
+            this.#uploadRunning = false;
+        }
+
+    }
+
+    private _loadInternal(dataset: RemoteDataset): Promise<SimulationResult> {
+        throw new Error("not implemented");
+    }
+
+    private _setIndex(index: DatasetIndex|undefined) {
+        if (index !== undefined && !index.datasetGroups)
+            throw new Error("Unexpected index format " + JSON.stringify(index));
+        this.#index = index;
+        this._setSelector(index);
+        if (index)
+            this.#container.removeAttribute("hidden");
+        else
+            this.#container.setAttribute("hidden", "hidden");
+    }
+
+    private _setSelector(index: DatasetIndex|undefined) {
+        this._clearSelector();
+        if (index) {
+            const frag = document.createDocumentFragment();
+            index.datasetGroups.forEach(group => {
+                const optgroup = JsUtils.createElement("optgroup", {parent: frag, title: group.description});
+                optgroup.label = group.label || group.id;
+                group.datasets.forEach(ds => {
+                    const opt = JsUtils.createElement("option", {parent: optgroup, title: ds.description});
+                    opt.value = ds.id;
+                    opt.innerText = ds.label || ds.id;
+                });
+            });
+            this.#selector.appendChild(frag);
+        }
+        this.#selector.dispatchEvent(new Event("change"));
+    }
+
+    private _clearSelector() {
+        const selector = this.#selector;
+        while (selector.hasChildNodes())
+            selector.firstChild.remove();
+    }
+
+    private _retrieveIndex() {
+        const url = this.#indexUrl;
+        if (!url || !this.#connected)
+            return;
+        fetch(url, {
+            headers: {Accept: "application/json"}
+        }).then(async result => {
+            if (!result.ok) {
+                const t = await result.text();
+                let msg = "Failed to download index from " + url + ": " + result.status + ", " + result.statusText;
+                if (t)
+                    msg += " (" + t + ")";
+                throw new Error(t);
+            }
+            return result.json();
+        }).then(response => this._setIndex(response))
+        .catch(e => this.dispatchEvent(new CustomEvent<Error>("error", {detail: new Error("Failed to load index " + e)})));
+    }
+
+}
+

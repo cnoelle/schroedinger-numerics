@@ -14,6 +14,8 @@
         </div>
         <h2>Upload results</h2>
         <wf-upload></wf-upload>
+        <h2>Load available results</h2>
+        <static-resources-import index-url="./assets/static/index.json"></static-resources-import>
         <h2>Datasets</h2>
         <dataesets-grid></dataesets-grid>
     </div>
@@ -38,10 +40,11 @@
         import { ObservablesWidget } from "./ObservablesWidget.js";
         import { SimulationControls } from "./SimulationControls.js";
         import { SimulationController } from "./SimulationController.js";
-        import { FileUpload } from "./FileUpload.js";
+        import { FileUpload, StaticResourcesImport } from "./FileUpload.js";
         import { DatasetsGrid } from "./DatasetsGrid.js";
 
         FileUpload.register();
+        StaticResourcesImport.register();
         DatasetsGrid.register();
         SimulationControls.register();
         WaveFunctionPlot.register();
