@@ -292,39 +292,43 @@ class FileImport {
             reject: (error: any) => void,
             progressReporter: ProgressSink,
             options?: {requireSquareValues?: boolean}) {
-        const header: [Array<string>, number]|null = FileImport._nextRow(result, 0, 2);
-        if (!header) {
-            reject(new Error("Wave function file does not contain any data"));
-            return;
-        }
-        const x: number = header[0].indexOf("x");
-        const p: number = header[0].indexOf("p");
-        const x2: number = header[0].indexOf("x^2");
-        const p2: number = header[0].indexOf("p^2");
-        const E: number = header[0].indexOf("E");
-        if (x < 0 || p<0 || options?.requireSquareValues && (x2 < 0 || p2< 0)) {
-            reject(new Error("Observables file does not provide all required observables; header: " + JSON.stringify(header[1])));
-            return;
-        }
-        const exp: Array<ExpectationValues> = [];
-        let start: number = header[1];
-        while (true) {
-            const line0: [Array<string>, number]|null = FileImport._nextRow(result, start, 4);
-            if (!line0)
-                break;
-            start = line0[1];
-            const line: Array<string> = line0[0];
-            const e: ExpectationValues = {
-                x: parseFloat(line[x]),
-                p: parseFloat(line[p]),
-                x2: x2 < 0 ? undefined : parseFloat(line[x2]),
-                p2: p2 < 0 ? undefined : parseFloat(line[p2]),
-                E: E >= 0 ? parseFloat(line[E]) || 1 : 1 // FIXME no default value
+        try {
+            const header: [Array<string>, number]|null = FileImport._nextRow(result, 0, 2);
+            if (!header) {
+                reject(new Error("Wave function file does not contain any data"));
+                return;
             }
-            exp.push(e);
+            const x: number = header[0].indexOf("x");
+            const p: number = header[0].indexOf("p");
+            const x2: number = header[0].indexOf("x^2");
+            const p2: number = header[0].indexOf("p^2");
+            const E: number = header[0].indexOf("E");
+            if (x < 0 || p<0 || options?.requireSquareValues && (x2 < 0 || p2< 0)) {
+                reject(new Error("Observables file does not provide all required observables; header: " + JSON.stringify(header[1])));
+                return;
+            }
+            const exp: Array<ExpectationValues> = [];
+            let start: number = header[1];
+            while (true) {
+                const line0: [Array<string>, number]|null = FileImport._nextRow(result, start, 4);
+                if (!line0)
+                    break;
+                start = line0[1];
+                const line: Array<string> = line0[0];
+                const e: ExpectationValues = {
+                    x: parseFloat(line[x]),
+                    p: parseFloat(line[p]),
+                    x2: x2 < 0 ? undefined : parseFloat(line[x2]),
+                    p2: p2 < 0 ? undefined : parseFloat(line[p2]),
+                    E: E >= 0 ? parseFloat(line[E]) || 1 : 1 // FIXME no default value
+                }
+                exp.push(e);
+            }
+            resolve(exp);
+            progressReporter.isDone();
+        } catch (e) {
+            reject(e);
         }
-        progressReporter.isDone();
-        resolve(exp);
 
     }
 
@@ -770,6 +774,7 @@ export interface LabeledItem {
 }
 
 export interface RemoteDataset extends LabeledItem {
+    type: "qm"|"classical";
     baseUrl: string;
     settings: string;
     trajectory?: string;
@@ -970,8 +975,16 @@ export class StaticResourcesImport extends HTMLElement {
         const results = await Promise.all(promises);
         const settings: SimulationSettings = results[0];
         const trajectory: Array<ExpectationValues>|undefined = results[1];
-        console.log("settings", settings, "trajectory", trajectory);
-        // TODO
+        if (dataset.type === "classical") {
+            const deltaT = settings.deltaT || 1;
+            const classicalResult: SimulationResult = {
+                id: dataset.id,
+                timesteps: trajectory.map((exp, idx) => {return {time: idx*deltaT, point: exp};}),
+                settingsClassical: settings as ClassicalSettings
+            };
+            return classicalResult;
+        }
+                // TODO
         throw new Error("not implemented");
     }
 

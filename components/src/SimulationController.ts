@@ -36,10 +36,10 @@ export class SimulationController implements SimulationStateListener {
 
     constructor(
             private readonly _ctrl: SimulationControls,
-            private readonly _fileUpload: FileUpload, 
+            private readonly _fileUploads: Array<HTMLElement>, 
             private readonly _widgets: Array<QmWidget>|(() => Array<QmWidget>),
             private readonly _datasetGrid?: DatasetsGrid) {
-        _fileUpload.addEventListener("upload", this.#listener);  // bind to this?
+        _fileUploads.forEach(upload => upload.addEventListener("upload", this.#listener));
         const controlsListener = ((event: Event) => {
             const type = event.type;
             switch (type) {
@@ -139,7 +139,7 @@ export class SimulationController implements SimulationStateListener {
     }
 
     close() {
-        this._fileUpload.removeEventListener("upload", this.#listener);
+        this._fileUploads.forEach(upload => upload.removeEventListener("upload", this.#listener));
         SimulationControls.EVENTS.forEach(event => this._ctrl.removeEventListener(event, this.#controlsListener));
     }
 

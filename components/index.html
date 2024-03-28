@@ -17,7 +17,7 @@
         <h2>Load available results</h2>
         <static-resources-import index-url="./assets/static/index.json"></static-resources-import>
         <h2>Datasets</h2>
-        <dataesets-grid></dataesets-grid>
+        <datasets-grid></datasets-grid>
     </div>
     <div class="menu-margin">
         <div class="menu-open" hidden="hidden">
@@ -51,7 +51,8 @@
         PhaseSpaceDensityWidget.register();
         ObservablesWidget.register();
 
-        const upload = document.querySelector("wf-upload");
+        const uploads = [document.querySelector("wf-upload"), 
+                document.querySelector("static-resources-import")];
         const controls = document.querySelector("simulation-controls");
         const displayWidgets = () => {
             return [
@@ -60,7 +61,7 @@
                 ...Array.from(document.querySelectorAll("observables-widget")),
             ]
         };
-        const controller = new SimulationController(controls, upload, displayWidgets, 
+        const controller = new SimulationController(controls, uploads, displayWidgets, 
                 document.querySelector("datasets-grid"));
         // for debugging
         window.sch = controller;

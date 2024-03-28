@@ -32,7 +32,7 @@ export class DatasetsGrid extends HTMLElement {
         return DatasetsGrid._tag;
     }
 
-    readonly #datasets: Array<SimulationResult> = [];
+    //readonly #datasets: Array<SimulationResult> = [];
 
     constructor() {
         super();
@@ -42,6 +42,7 @@ export class DatasetsGrid extends HTMLElement {
         shadow.appendChild(style);
     }
 
+    /*
     addSimDataset(result: SimulationResult) {
         this.#datasets.push(result);
         this.addResultDataset(result);
@@ -54,10 +55,7 @@ export class DatasetsGrid extends HTMLElement {
             this.removeResultDataset(result.id);
         }
     }
-
-    getSimDataset(): Array<SimulationResult> {
-        return [...this.#datasets];
-    }
+    */
 
     addResultDataset(result: SimulationResult) {
         const settings: SimulationSettings = simulationSettings(result);
@@ -70,7 +68,7 @@ export class DatasetsGrid extends HTMLElement {
         //JsUtils.createElement("li", {text: "Potential: " + TypesUtils.printPotential(settings), parent: list});
         JsUtils.createElement("li", {text: "Type: " + (settings.type ? settings.type : isQuantum ? "qm" : "classical"), parent: list});
         //@ts-ignore
-        JsUtils.createElement("li", {text: "Scheme: " + result.settings.scheme.id, parent: list});
+        JsUtils.createElement("li", {text: "Scheme: " + settings.scheme.id, parent: list});
         if (isQuantum)
             JsUtils.createElement("li", {html: "&hbar; = " + (settings as QuantumSettings).hbar, parent: list});
         JsUtils.createElement("li", {html: "&Delta;t = " + settings.deltaT?.toPrecision(2), parent: list});
