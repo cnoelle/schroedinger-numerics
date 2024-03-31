@@ -104,19 +104,20 @@ class FileImport {
         }
     }
 
-    private static _parseWaveFunctionFile(file: File, progressReporter: AggregatingReporter, options?: {headerPrefix?: string}): Promise<[Array<number>, Array<Array<[number, number]>>]|undefined> {
-        if (!file)
+    public static _parseWaveFunctionFile(stream: ReadableStream, fileName: string,
+            progressReporter: AggregatingReporter, options?: {headerPrefix?: string}): Promise<[Array<number>, Array<Array<[number, number]>>]|undefined> {
+        if (!stream)
             return Promise.resolve(undefined);
-        const fl = file.name.toLowerCase();
+        const fl = fileName.toLowerCase();
         if (fl.endsWith(".gz"))
-            return FileImport._parseWaveFunctionFileGzip(file, progressReporter, options);
+            return FileImport._parseWaveFunctionFileGzip(stream, progressReporter, options);
         else if (fl.endsWith(".dat"))
-            return FileImport._parseWaveFunctionFileBinary(file, progressReporter, options);
+            return FileImport._parseWaveFunctionFileBinary(stream, progressReporter, options);
         else
-            return FileImport._parseWaveFunctionFileCsv(file, progressReporter, options);
+            return FileImport._parseWaveFunctionFileCsv(stream, progressReporter, options);
     }
 
-    private static _parseWaveFunctionFileCsv(file: File, progressReporter: AggregatingReporter, options?: {headerPrefix?: string}): Promise<[Array<number>, Array<Array<[number, number]>>]|undefined> {
+    private static _parseWaveFunctionFileCsv(stream: ReadableStream, progressReporter: AggregatingReporter, options?: {headerPrefix?: string}): Promise<[Array<number>, Array<Array<[number, number]>>]|undefined> {
         const headerPrefix: string = (options?.headerPrefix || "Psi") + "(";
         const reporter: ProgressSink = progressReporter.add();
         return new Promise((resolve, reject) => {
@@ -213,19 +214,22 @@ class FileImport {
                 if (event.lengthComputable) 
                     reporter.progress(event.loaded, event.total);
             };
-            reader.readAsText(file, "UTF-8");
-            reporter.started();
+            new Response(stream).blob().then(blob => {
+                reader.readAsText(blob, "UTF-8");
+                reporter.started();
+            });
+        
         });
     }
 
-    private static async _parseWaveFunctionFileGzip(file: File, progressReporter: AggregatingReporter, options?: {headerPrefix?: string}): Promise<[Array<number>, Array<Array<[number, number]>>]|undefined> {
+    private static async _parseWaveFunctionFileGzip(stream: ReadableStream, progressReporter: AggregatingReporter, options?: {headerPrefix?: string}): Promise<[Array<number>, Array<Array<[number, number]>>]|undefined> {
         const ds = new DecompressionStream("gzip");
-        const decompressedStream: ReadableStream<Uint8Array> = file.stream().pipeThrough(ds);
-        const blob: Blob = await new Response(decompressedStream).blob();
-        return FileImport._parseWaveFunctionFileBinary(blob, progressReporter, options);
+        const decompressedStream: ReadableStream<Uint8Array> = stream.pipeThrough(ds);
+        //const blob: Blob = await new Response(decompressedStream).blob();
+        return FileImport._parseWaveFunctionFileBinary(stream, progressReporter, options);
     }
 
-    private static _parseWaveFunctionFileBinary(file: Blob, progressReporter: AggregatingReporter, 
+    private static _parseWaveFunctionFileBinary(stream: ReadableStream, progressReporter: AggregatingReporter, 
             options?: {headerPrefix?: string}): Promise<[Array<number>, Array<Array<[number, number]>>]|undefined> {
         const headerPrefix: string = (options?.headerPrefix || "Psi") + "(";
         const reporter: ProgressSink = progressReporter.add();
@@ -236,7 +240,7 @@ class FileImport {
                 const decoder = new TextDecoder();
                 const magic = decoder.decode(result.slice(0, 12));
                 if (magic !== "schroedinger")
-                    throw new Error("Invalid wave function file " + (!!(file as File).name ? (file as File).name : ""));
+                    throw new Error("Invalid wave function file");
                 const asUint8 = new Uint8Array(result);
                 let symbol0: string|undefined;
                 let nulTerm: number = -1;
@@ -281,8 +285,10 @@ class FileImport {
                 if (event.lengthComputable) 
                     reporter.progress(event.loaded, event.total);
             };
-            reader.readAsArrayBuffer(file);
-            reporter.started();
+            new Response(stream).blob().then(blob => {
+                reader.readAsArrayBuffer(blob);
+                reporter.started();
+            });
         });
     }
 
@@ -389,41 +395,26 @@ class FileImport {
         return [Math.min(...V), Math.max(...V)];
     }
 
-    private static async _parseQmFiles0(id: string, reporter: AggregatingReporter,  waveFunction: File, observables: File, settings: File,
-            psiP?: File, psiTilde?: File, phiP?: File, observablesQm?: File, potential?: File, classicalResults?: SimulationResultClassical): Promise<SimulationResultQm> {
-        const settingsReporter = reporter.add();
-        const waveFunctionPromise: Promise<[Array<number>, Array<Array<[number, number]>>]> = FileImport._parseWaveFunctionFile(waveFunction, reporter);
-        const psiPPromise: Promise<[Array<number>, Array<Array<[number, number]>>]> = FileImport._parseWaveFunctionFile(psiP, reporter);
-        const observablesPromise: Promise<Array<ExpectationValues>> = FileImport._parseObservablesFile(observables, reporter);
-        const psiTildePromise: Promise<[Array<number>, Array<Array<[number, number]>>]|undefined> = FileImport._parseWaveFunctionFile(psiTilde, reporter);
-        const phiPPromise: Promise<[Array<number>, Array<Array<[number, number]>>]|undefined> = FileImport._parseWaveFunctionFile(phiP, reporter);
-        const observablesQmPromise: Promise<Array<ExpectationValues>|undefined> = FileImport._parseObservablesFile(observablesQm, reporter);
-        const potentialPromise: Promise<[Array<number>, Array<Array<[number, number]>>]> = FileImport._parseWaveFunctionFile(potential, reporter, {headerPrefix: "V"});
-        const settingsPromise: Promise<Omit<QuantumSettings, "potentialValueRange">> = new Promise((resolve, reject) => {
-            const reader = new FileReader();
-            reader.onload = (event: ProgressEvent<FileReader>) => {
-                const result: string = event.target.result as string;
-                try {
-                    const result1: Omit<QuantumSettings, "potentialValueRange"> = JSON.parse(result);
-                    settingsReporter.isDone();
-                    resolve(result1);
-                } catch (e) {
-                    reject(e);
-                }
-            };
-            reader.onerror = reject;
-            reader.readAsText(settings, "UTF-8");
-            settingsReporter.started();
-        });
-        const result = await Promise.all([waveFunctionPromise, observablesPromise, settingsPromise, 
-            psiPPromise, psiTildePromise, phiPPromise, observablesQmPromise, potentialPromise]);
-        const x = result[0][0];
-        const psi = result[0][1];
+    static async parseQmResults(id: string, reporter: AggregatingReporter,
+            settingsPromise: Promise<Omit<QuantumSettings, "potentialValueRange">>,
+            observablesPromise: Promise<Array<ExpectationValues>>,
+            psiPromise: Promise<[Array<number>, Array<Array<[number, number]>>]>,
+            psiPPromise: Promise<[Array<number>, Array<Array<[number, number]>>]>,
+            phiPromise: Promise<[Array<number>, Array<Array<[number, number]>>]|undefined>,
+            phiPPromise: Promise<[Array<number>, Array<Array<[number, number]>>]|undefined>,
+            observablesQmPromise: Promise<Array<ExpectationValues>|undefined>,
+            potentialPromise: Promise<[Array<number>, Array<Array<[number, number]>>]>,
+            classicalResults?: SimulationResultClassical
+        ): Promise<SimulationResultQm> {
+        const result = await Promise.all([settingsPromise, observablesPromise, psiPromise, 
+            psiPPromise, phiPromise, phiPPromise, observablesQmPromise, potentialPromise]);
+        const x = result[2][0];
+        const psi = result[2][1];
         const hasPsiP: boolean = !!result[3];
         const psiP1 = hasPsiP ? result[3][1] : undefined;
         const p = hasPsiP ? result[3][0] : undefined;
         const observables2 = result[1];
-        const settings1a: Omit<QuantumSettings, "potentialValueRange"> = result[2];
+        const settings1a: Omit<QuantumSettings, "potentialValueRange"> = result[0];
         let waveFct: Array<QuantumSystem> = psi.map((values: Array<[number, number]>, idx: number) => {
             const observables: ExpectationValues = observables2[idx];
             const qmSystem: QuantumSystem = {
@@ -491,6 +482,36 @@ class FileImport {
             timesteps: waveFct,
             settingsQm: settings2
         };
+    }
+
+    private static async _parseQmFiles0(id: string, reporter: AggregatingReporter,  waveFunction: File, observables: File, settings: File,
+            psiP?: File, psiTilde?: File, phiP?: File, observablesQm?: File, potential?: File, classicalResults?: SimulationResultClassical): Promise<SimulationResultQm> {
+        const settingsReporter = reporter.add();
+        const psiPromise: Promise<[Array<number>, Array<Array<[number, number]>>]> = FileImport._parseWaveFunctionFile(waveFunction.stream(), waveFunction.name, reporter);
+        const psiPPromise: Promise<[Array<number>, Array<Array<[number, number]>>]> = FileImport._parseWaveFunctionFile(psiP?.stream(), psiP?.name, reporter);
+        const observablesPromise: Promise<Array<ExpectationValues>> = FileImport._parseObservablesFile(observables, reporter);
+        const phiPromise: Promise<[Array<number>, Array<Array<[number, number]>>]|undefined> = FileImport._parseWaveFunctionFile(psiTilde?.stream(), psiTilde?.name, reporter);
+        const phiPPromise: Promise<[Array<number>, Array<Array<[number, number]>>]|undefined> = FileImport._parseWaveFunctionFile(phiP?.stream(), phiP?.name, reporter);
+        const observablesQmPromise: Promise<Array<ExpectationValues>|undefined> = FileImport._parseObservablesFile(observablesQm, reporter);
+        const potentialPromise: Promise<[Array<number>, Array<Array<[number, number]>>]> = FileImport._parseWaveFunctionFile(potential?.stream(), potential?.name, reporter, {headerPrefix: "V"});
+        const settingsPromise: Promise<Omit<QuantumSettings, "potentialValueRange">> = new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = (event: ProgressEvent<FileReader>) => {
+                const result: string = event.target.result as string;
+                try {
+                    const result1: Omit<QuantumSettings, "potentialValueRange"> = JSON.parse(result);
+                    settingsReporter.isDone();
+                    resolve(result1);
+                } catch (e) {
+                    reject(e);
+                }
+            };
+            reader.onerror = reject;
+            reader.readAsText(settings, "UTF-8");
+            settingsReporter.started();
+        });
+        return FileImport.parseQmResults(id, reporter, settingsPromise, observablesPromise, psiPromise,
+                psiPPromise, phiPromise, phiPPromise, observablesQmPromise, potentialPromise, classicalResults);
     }
 
 }
@@ -783,6 +804,7 @@ export interface RemoteDataset extends LabeledItem {
     phi?: string;
     phiP?: string;
     expectationValues?: string;
+    effectivePotential?: string;
 }
 
 export interface DatasetGroup extends LabeledItem {
@@ -939,7 +961,7 @@ export class StaticResourcesImport extends HTMLElement {
             .then(async result => {
                 if (!result.ok) {
                     const t = await result.text();
-                    let msg = "Failed to download index from " + url + ": " + result.status + ", " + result.statusText;
+                    let msg = "Failed to download file " + url + ": " + result.status + ", " + result.statusText;
                     if (t)
                         msg += " (" + t + ")";
                     throw new Error(t);
@@ -948,44 +970,79 @@ export class StaticResourcesImport extends HTMLElement {
             });
     }
 
-    // TODO support more file types, create solution, etc
+    private static _getRemoteFile(url: string, options?: {Accept?: string}): Promise<ReadableStream> { 
+        const init: RequestInit = {};
+        if (options?.Accept)
+            init.headers = {Accept: options.Accept};
+        return fetch(url, init)
+            .then(async result => {
+                if (!result.ok) {
+                    const t = await result.text();
+                    let msg = "Failed to download file " + url + ": " + result.status + ", " + result.statusText;
+                    if (t)
+                        msg += " (" + t + ")";
+                    throw new Error(t);
+                }
+                return result.body;
+            });
+    }
+
     private async _loadInternal(dataset: RemoteDataset, progressReporter: AggregatingReporter): Promise<SimulationResult> {
         const url: string = dataset.baseUrl;
-        const promises: Array<Promise<any>> = [];
         const settingsUrl = StaticResourcesImport._concat(url, dataset.settings);
         const settingsReporter = progressReporter.add();
         settingsReporter.started();
         const settingsPromise: Promise<SimulationSettings> 
             = StaticResourcesImport._getTextFile(settingsUrl, "json");
         settingsPromise.then(() => settingsReporter.isDone());
-        promises.push(settingsPromise);
-        if (dataset.trajectory) {
-            const trajectoryUrl = StaticResourcesImport._concat(url, dataset.trajectory);
-            const reporterTraj = progressReporter.add();
-            const trajectoryPromise = new Promise((resolve, reject) => {
-                const content: Promise<string> = StaticResourcesImport._getTextFile(trajectoryUrl, "csv");
+        const parseObservables = (file: string|undefined) => {
+            if (!file)
+                return Promise.resolve(undefined);
+            const obsUrl = StaticResourcesImport._concat(url, file);
+            const reporterObs = progressReporter.add();
+            const obsPromise = new Promise((resolve, reject) => {
+                const content: Promise<string> = StaticResourcesImport._getTextFile(obsUrl, "csv");
                 content
-                    .then(content0 => FileImport.parseObservablesFileInternal(content0, resolve, reject, reporterTraj))
+                    .then(content0 => FileImport.parseObservablesFileInternal(content0, resolve, reject, reporterObs))
                     .catch(e => reject(e));
             });
-            promises.push(trajectoryPromise);
-        } else {
-            promises.push(Promise.resolve(undefined));
-        }
-        const results = await Promise.all(promises);
-        const settings: SimulationSettings = results[0];
-        const trajectory: Array<ExpectationValues>|undefined = results[1];
-        if (dataset.type === "classical") {
+            return obsPromise;
+        };
+        const trajectoryPromise = parseObservables(dataset.trajectory);
+        let classicalResult: SimulationResultClassical|undefined;
+        if (dataset.trajectory) {
+            const settings: ClassicalSettings = await settingsPromise as ClassicalSettings;
+            const trajectory: Array<ExpectationValues> = await trajectoryPromise;
             const deltaT = settings.deltaT || 1;
-            const classicalResult: SimulationResult = {
+            classicalResult = {
                 id: dataset.id,
                 timesteps: trajectory.map((exp, idx) => {return {time: idx*deltaT, point: exp};}),
                 settingsClassical: settings as ClassicalSettings
             };
-            return classicalResult;
+            if (dataset.type === "classical")
+                return classicalResult;
         }
-                // TODO
-        throw new Error("not implemented");
+        const parseWaveFunctionFile = (file: string|undefined, options?: {headerPrefix?: string}) => {
+            if (!file)
+                return Promise.resolve(undefined);
+            const wfUrl = StaticResourcesImport._concat(url, file);
+            const accept = file.endsWith("csv") ? "text/csv" : "application/octet-stream";
+            const streamPromise: Promise<ReadableStream<Uint8Array>> 
+                = StaticResourcesImport._getRemoteFile(wfUrl, {Accept: accept})
+            const wfPromise = streamPromise.then(stream => 
+                FileImport._parseWaveFunctionFile(stream, file, progressReporter, options));
+            return wfPromise;
+        }
+        const psiPromise = parseWaveFunctionFile(dataset.psi);
+        const psiPPromise = parseWaveFunctionFile(dataset.psiP);
+        const phiPromise = parseWaveFunctionFile(dataset.phi);
+        const phiPPromise = parseWaveFunctionFile(dataset.phiP);
+        const observablesQmPromise = parseObservables(dataset.expectationValues);
+        const potentialPromise = parseWaveFunctionFile(dataset.effectivePotential, {headerPrefix: "V"});
+
+        return FileImport.parseQmResults(dataset.id, progressReporter, settingsPromise as any, 
+            observablesQmPromise, psiPromise, psiPPromise, phiPromise, phiPPromise, 
+            observablesQmPromise, potentialPromise, classicalResult);
     }
 
     private _setIndex(index: DatasetIndex|undefined) {
