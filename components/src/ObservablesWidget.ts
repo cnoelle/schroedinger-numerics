@@ -358,6 +358,15 @@ export class ObservablesWidget extends HTMLElement implements QmWidget {
             let initialized: boolean = false;
             let lastXP: [number, number] = [NaN, NaN];
             for (const timestep of result.timesteps) {
+                /*
+                * TODO in the residual quantum case we have actually several options here...
+                *   - show the total expectation values
+                *   - show quantum contributions only
+                *   - show classical contributions only
+                *   - show multiple(?)
+                * Even in the ordinary quantum case we could show observables for the position space 
+                * wave function or momentum space
+                */
                 const point = isQm ? (timestep as QuantumSystem).psi : (timestep as ClassicalSystem).point;
                 if (!isFinite(point.x) || !isFinite(isP ? point.p : point.E) || (point.x === lastXP[0] && (!isP ? point.E ===lastXP[1] : point.p === lastXP[1] )))
                     continue;

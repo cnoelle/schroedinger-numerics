@@ -104,8 +104,11 @@ class FileImport {
         }
     }
 
-    public static _parseWaveFunctionFile(stream: ReadableStream, fileName: string,
-            progressReporter: AggregatingReporter, options?: {headerPrefix?: string}): Promise<[Array<number>, Array<Array<[number, number]>>]|undefined> {
+    /**
+     * returns [array of x-values/points, array of [real, imag] values]
+     */
+    public static _parseWaveFunctionFile(stream: ReadableStream, fileName: string, progressReporter: AggregatingReporter, 
+            options?: {headerPrefix?: string}): Promise<[Array<number>, Array<Array<[number, number]>>]|undefined> {
         if (!stream)
             return Promise.resolve(undefined);
         const fl = fileName.toLowerCase();
@@ -1046,11 +1049,12 @@ export class StaticResourcesImport extends HTMLElement {
         const psiPPromise = parseWaveFunctionFile(dataset.psiP);
         const phiPromise = parseWaveFunctionFile(dataset.phi);
         const phiPPromise = parseWaveFunctionFile(dataset.phiP);
-        const observablesQmPromise = parseObservables(dataset.expectationValues);
+        const observablesPromise = parseObservables(dataset.expectationValues);
+        const observablesQmPromise = parseObservables(dataset.expectationValuesQm);
         const potentialPromise = parseWaveFunctionFile(dataset.effectivePotential, {headerPrefix: "V"});
 
         return FileImport.parseQmResults(dataset.id, progressReporter, settingsPromise as any, 
-            observablesQmPromise, psiPromise, psiPPromise, phiPromise, phiPPromise, 
+            observablesPromise, psiPromise, psiPPromise, phiPromise, phiPPromise, 
             observablesQmPromise, potentialPromise, classicalResult);
     }
 
