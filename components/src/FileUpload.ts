@@ -654,7 +654,6 @@ export class FileUpload extends HTMLElement {
     readonly #datasetIdField: HTMLInputElement;
     readonly #fileSelector: HTMLInputElement;
     readonly #fileUpload: HTMLInputElement;
-    readonly #progress: HTMLProgressElement;
     readonly #progressReporter: ProgressSink;
 
     // state
@@ -708,10 +707,9 @@ export class FileUpload extends HTMLElement {
             attributes: new Map([["hidden", "hidden"]]), parent: this.shadowRoot});
         const overlay2 = JsUtils.createElement("div", {parent: progressOverlay});
         JsUtils.createElement("div", {text: "Loading...", parent: overlay2});
-        this.#progress = JsUtils.createElement("progress", {parent: overlay2, 
+        const progressEl = JsUtils.createElement("progress", {parent: overlay2, 
                 attributes: new Map([["max", "100"], ["value", "0"]])});                
-        this.#progress.value = 0;  // ?
-        const progressEl = this.#progress;
+        progressEl.value = 0;  // ?
         this.#progressReporter = {
             started() {
                 progressOverlay.hidden = false;
@@ -725,7 +723,7 @@ export class FileUpload extends HTMLElement {
             },
             error(reason?: any) {
                 console.error("Error uploading files", reason);
-                progressOverlay.hidden = false;
+                progressOverlay.hidden = true;
             }   
         };
         const enableFileUpload = (enable: boolean) => {
@@ -827,7 +825,6 @@ export interface DatasetIndex {
     datasetGroups: Array<DatasetGroup>;
 }
 
-// TODO show spinner on load?
 export class StaticResourcesImport extends HTMLElement {
 
     private static DEFAULT_TAG: string = "static-resources-import";
@@ -881,7 +878,14 @@ export class StaticResourcesImport extends HTMLElement {
         const style: HTMLStyleElement = document.createElement("style");
         style.textContent = ":host { position: relative; } "
             + ".import-container {display: flex; column-gap: 1em;} "
-            + ".import-container[hidden] {display: none; }";
+            + ".import-container[hidden] {display: none; } "
+            + ".overlay { position: fixed; width: 100%; height: 100%; top: 0; left: 0; z-index: 10; "
+            +      "background-color: rgb(0,0,0, 0.2); display: flex; justify-items: center; "
+            +      "justify-content: space-around;     align-items: center; } " 
+            /* https://stackoverflow.com/questions/23772673/hidden-property-does-not-work-with-flex-box */
+            +  ".overlay[hidden]{ display:none; } "
+            + ".overlay>div>div {font-size: 1.8em; margin-bottom: 1em; } " 
+            + ".overlay>div>progress { transform: scale(2); }";
         shadow.append(style);
         const container = JsUtils.createElement("div", {parent: shadow, classes: ["import-container"],
             attributes: new Map([["hidden", "true"]])})
@@ -897,21 +901,27 @@ export class StaticResourcesImport extends HTMLElement {
         button.addEventListener("click", () => this._load());
         this.#container = container;
         this.#selector = select;
-        // TODO
+        const progressOverlay = JsUtils.createElement("div", {classes: ["overlay"], id: "uploadProgress", 
+            attributes: new Map([["hidden", "hidden"]]), parent: this.shadowRoot});
+        const overlay2 = JsUtils.createElement("div", {parent: progressOverlay});
+        JsUtils.createElement("div", {text: "Loading...", parent: overlay2});
+        const progressEl = JsUtils.createElement("progress", {parent: overlay2, 
+                attributes: new Map([["max", "100"], ["value", "0"]])});                
+        progressEl.value = 0;  // ?
         this.#progressReporter = {
             started() {
-                //progressOverlay.hidden = false;
+                progressOverlay.hidden = false;
             },
             progress(done: number, total: number) {
                 const progress: number = total > 0 ? done / total : 0;
-                //progressEl.value = progress * 100;
+                progressEl.value = progress * 100;
             }, 
             isDone() {
-                //progressOverlay.hidden = true;
+                progressOverlay.hidden = true;
             },
             error(reason?: any) {
                 console.error("Error uploading files", reason);
-                //progressOverlay.hidden = false;
+                progressOverlay.hidden = true;
             }   
         };
     }
@@ -936,6 +946,8 @@ export class StaticResourcesImport extends HTMLElement {
     }
 
     private async _load() {
+        if (this.#uploadRunning)
+            return;
         const selectedValue = this.#selector.value;
         const selected: RemoteDataset|undefined 
             = this.#index.datasetGroups.flatMap(g => g.datasets).find(ds => ds.id === selectedValue);
@@ -952,6 +964,7 @@ export class StaticResourcesImport extends HTMLElement {
             this.dispatchEvent(new CustomEvent<Error>("error", {detail: new Error("Failed to upload results " + e)}));
         } finally {
             this.#uploadRunning = false;
+            reporter.isDone();
         }
 
     }
@@ -1018,6 +1031,7 @@ export class StaticResourcesImport extends HTMLElement {
                     .then(content0 => FileImport.parseObservablesFileInternal(content0, resolve, reject, reporterObs))
                     .catch(e => reject(e));
             });
+            progressReporter.started();
             return obsPromise;
         };
         const trajectoryPromise = parseObservables(dataset.trajectory);
