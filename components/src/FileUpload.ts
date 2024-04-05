@@ -316,7 +316,7 @@ class FileImport {
             const exp: Array<ExpectationValues> = [];
             let start: number = header[1];
             while (true) {
-                const line0: [Array<string>, number]|null = FileImport._nextRow(result, start, 4);
+                const line0: [Array<string>, number]|null = FileImport._nextRow(result, start, 3);
                 if (!line0)
                     break;
                 start = line0[1];
@@ -439,7 +439,8 @@ class FileImport {
             const phi = result[4][1];
             if (phi.length !== classicalResults.timesteps.length 
                     || phi.length !== waveFct.length) {
-                const msg = "Incompatible lengths between wave functions and/or trajectory"
+                const msg = "Incompatible lengths between wave functions and/or trajectory (psi: " 
+                        + waveFct.length + ", phi: " + phi.length + ", c: " + classicalResults.timesteps.length + ")" ;
                 reporter.error(msg);
                 throw new Error(msg);
             }
@@ -803,7 +804,15 @@ export interface RemoteDataset extends LabeledItem {
     psiP?: string;
     phi?: string;
     phiP?: string;
+    /**
+     * Total quantum expectation values.
+     */
     expectationValues?: string;
+    /**
+     * In the case of a residual representation, this 
+     * file contains only pure quantum contributions
+     */
+    expectationValuesQm?: string;
     effectivePotential?: string;
 }
 
