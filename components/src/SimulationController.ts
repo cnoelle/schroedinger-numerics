@@ -19,11 +19,18 @@ export class SimulationController implements SimulationStateListener {
 
     readonly #listener = (event: CustomEvent<SimulationResult>) => {
         const result: SimulationResult = event.detail;
-        const widgets0 = this._widgets;
-        const widgets = Array.isArray(widgets0) ? widgets0 : widgets0();
+        const idx = this.#currentResults.findIndex(r2 => r2.id === result.id);
+        if (idx >= 0) {
+            console.error("Dataset", result.id, "already exists");
+            return;
+        }
         // TODO color etc
         const params0: SimulationSettings = simulationSettings(result);
-        const clIdx: number = this.#currentResults.length % 3;
+        let clIdx: number = this.#currentResults.length % 3;
+        if (clIdx === 1)
+            clIdx = 2;
+        else if (clIdx === 2)
+            clIdx = 1;
         const color: [number,number,number,number] = [0,0,0,1];
         color[clIdx] = 255;
         const params: SimulationParameters = {...params0 as any, id: result.id, color: new ColorRgba(color) };
@@ -31,26 +38,16 @@ export class SimulationController implements SimulationStateListener {
         const newSettings = [...this.#currentSettings, params];
         this.#currentResults = newResults;
         this.#currentSettings = newSettings;
-        this._restart();
-        widgets.forEach(w => w.initialize(newSettings));
-        widgets.filter(w => w.initializeValues).forEach(w => w.initializeValues(newResults));
-        this._ctrl.onProgress(0);
-        this.stateChanged(SimulationState.INITIALIZED);
+        this.initWidgets();
         this._datasetGrid?.addResultDataset(result);
     }
 
-    // TODO not working yet
     readonly #deletionListener = (event: CustomEvent<string>) => {
         const idx = this.#currentResults.findIndex(result => result.id === event.detail);
-        if (idx > 0) {
+        if (idx >= 0) {
             this.#currentResults.splice(idx, 1);
             this.#currentSettings.splice(idx, 1);
-            this._restart();
-            if (this.#currentResults.length === 0) {
-                const widgets0 = this._widgets;
-                const widgets = Array.isArray(widgets0) ? widgets0 : widgets0();
-                widgets.forEach(w => w.clear());
-            }
+            this.initWidgets();
         }
     };
 
@@ -90,6 +87,21 @@ export class SimulationController implements SimulationStateListener {
         SimulationControls.EVENTS.forEach(event => _ctrl.addEventListener(event, controlsListener));
 
     }
+
+    private initWidgets() {
+        this._restart();
+        const widgets0 = this._widgets;
+        const widgets = Array.isArray(widgets0) ? widgets0 : widgets0();
+        if (this.#currentResults.length === 0) {
+            widgets.forEach(w => w.clear());
+        } else {
+            widgets.forEach(w => w.initialize(this.#currentSettings));
+            widgets.filter(w => w.initializeValues).forEach(w => w.initializeValues(this.#currentResults));
+            this._ctrl.onProgress(0);
+            this.stateChanged(SimulationState.INITIALIZED);
+        }
+    }
+
 
     onProgress(fraction: number) {
         this._ctrl.onProgress(fraction);
