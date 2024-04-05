@@ -1,9 +1,10 @@
+import { ColorRgba } from "./Color.js";
 import { JsUtils } from "./JsUtils.js";
 import { QuantumSettings, SimulationParameters, SimulationResult, SimulationResultClassical, SimulationResultQm, SimulationSettings, simulationSettings } from "./types.js";
 
 /**
  * Dataset displayed in menu
- * TODO dispatch events: color changed, dataset deleted; and handle them in controller
+ * TODO dispatch events: color changed, dataset deleted(DONE); and handle them in controller
  */
 export class DatasetsGrid extends HTMLElement {
 
@@ -59,15 +60,23 @@ export class DatasetsGrid extends HTMLElement {
     }
     */
 
-    addResultDataset(result: SimulationResult) {
-        const settings: SimulationSettings = simulationSettings(result);
+    addResultDataset(result: SimulationResult, settings: SimulationParameters) {
         const isQuantum: boolean = settings.type === "qm";
         const frag: DocumentFragment = document.createDocumentFragment();
 
         const titleContainer = JsUtils.createElement("div", {parent: frag, classes: ["title-container"], dataset: new Map([["id", result.id]])});
         // title
         JsUtils.createElement("div", {text: result.id, parent: titleContainer});
-        JsUtils.createElement("div", {parent: titleContainer}); // TODO color selection
+        const colorPickerParent = JsUtils.createElement("div", {parent: titleContainer});
+        import("toolcool-color-picker").then(() => {
+            const colorPicker = JsUtils.createElement("toolcool-color-picker" as any, {parent: colorPickerParent});
+            colorPicker.color = settings.color.toString();
+            colorPicker.addEventListener("change", (event: CustomEvent<{rgba: string}>) => 
+                this.dispatchEvent(new CustomEvent<{color: ColorRgba, id: string}>("colorChange", { detail: {
+                    color: new ColorRgba(event.detail.rgba),
+                    id: result.id
+                }})));
+        });
         const deleteBtn = JsUtils.createElement("input", {parent: JsUtils.createElement("div", {parent: titleContainer}),
                 text: "delete", title: "Remove this dataset", attributes: new Map([["type", "button"]])}); 
         deleteBtn.addEventListener("click", () => this.removeResultDataset(result.id));
@@ -96,7 +105,6 @@ export class DatasetsGrid extends HTMLElement {
     } 
 
     removeResultDataset(id: string) {
-        // TODO handle event!
         this.dispatchEvent(new CustomEvent<string>("deleted", {detail: id}));
         this.shadowRoot.querySelectorAll("[data-id='"+ id + "']").forEach(el => el.remove());
     } 

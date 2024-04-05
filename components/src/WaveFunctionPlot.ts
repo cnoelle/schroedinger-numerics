@@ -2,9 +2,7 @@ import uPlot, { AlignedData, Options, Series } from "uplot";
 import { JsUtils } from "./JsUtils.js";
 import {  Coordinates, QmWidget, QuantumSettings, QuantumSystem, QuantumSystemResidual, SimulationParameters, WaveFunctionData } from "./types.js";
 
-/**
- * TODO handle case that only a subset of results supports this widget type
- */
+
 export class WaveFunctionPlot extends HTMLElement implements QmWidget {
 
     private static DEFAULT_TAG: string = "wavefunction-plot";
@@ -276,10 +274,6 @@ export class WaveFunctionPlot extends HTMLElement implements QmWidget {
 
         this._initChart();
         const multiIds: boolean = ids.length > 1;
-        if (this.#activeIds.length === 1 && !multiIds)
-            return;
-        if (this.#activeIds.length === ids.length && !ids.find(id => this.#activeIds.indexOf(id) < 0))
-            return;
         // remove old series
         const s: number = this.#chart.series.length;
         for (let idx=s-1; idx > 0; idx--) {

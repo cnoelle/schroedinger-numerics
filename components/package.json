@@ -30,6 +30,7 @@
     "webpack-dev-server": "^5.0.2"
   },
   "dependencies": {
+    "toolcool-color-picker": "^1.0.15",
     "uplot": "^1.6.30"
   }
 }

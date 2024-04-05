@@ -178,11 +178,6 @@ export type ClassicalSettings = SimulationSettings & {
     readonly type: "classical";
 } & Potential;
 
-/**
- * RGBA format
- */
-export type Color = [number, number, number, number];
-
 export interface VisualizationSettings {
     id: string;
     color: ColorRgba;

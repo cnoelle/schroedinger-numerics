@@ -39,16 +39,24 @@ export class SimulationController implements SimulationStateListener {
         this.#currentResults = newResults;
         this.#currentSettings = newSettings;
         this.initWidgets();
-        this._datasetGrid?.addResultDataset(result);
+        this._datasetGrid?.addResultDataset(result, params);
     }
 
     readonly #deletionListener = (event: CustomEvent<string>) => {
         const idx = this.#currentResults.findIndex(result => result.id === event.detail);
-        if (idx >= 0) {
-            this.#currentResults.splice(idx, 1);
-            this.#currentSettings.splice(idx, 1);
-            this.initWidgets();
-        }
+        if (idx < 0)
+            return;
+        this.#currentResults.splice(idx, 1);
+        this.#currentSettings.splice(idx, 1);
+        this.initWidgets();
+    };
+
+    readonly #colorListener = (event: CustomEvent<{id: string; color: ColorRgba}>) => {
+        const idx = this.#currentResults.findIndex(result => result.id === event.detail.id);
+        if (idx < 0)
+            return;
+        this.#currentSettings[idx].color = event.detail.color;
+        this.initWidgets();
     };
 
     constructor(
@@ -58,6 +66,7 @@ export class SimulationController implements SimulationStateListener {
             private readonly _datasetGrid?: DatasetsGrid) {
         _fileUploads.forEach(upload => upload.addEventListener("upload", this.#listener));
         _datasetGrid?.addEventListener("deleted", this.#deletionListener);
+        _datasetGrid?.addEventListener("colorChange", this.#colorListener);
         const controlsListener = ((event: Event) => {
             const type = event.type;
             switch (type) {
