@@ -1,8 +1,10 @@
 import uPlot, { AlignedData, Options, Series } from "uplot";
 import { JsUtils } from "./JsUtils.js";
-import { ClassicalSettings, Coordinates, QmWidget, QuantumSettings, QuantumSystem, QuantumSystemResidual, SimulationParameters, SimulationSystem, WaveFunctionData } from "./types.js";
+import {  Coordinates, QmWidget, QuantumSettings, QuantumSystem, QuantumSystemResidual, SimulationParameters, WaveFunctionData } from "./types.js";
 
-
+/**
+ * TODO handle case that only a subset of results supports this widget type
+ */
 export class WaveFunctionPlot extends HTMLElement implements QmWidget {
 
     private static DEFAULT_TAG: string = "wavefunction-plot";
@@ -34,6 +36,7 @@ export class WaveFunctionPlot extends HTMLElement implements QmWidget {
     }
 
     #chart: uPlot;
+    #qmResultsAndFieldPresent: Array<boolean>|undefined = undefined;
     // range explicitly set
     #valueRange: [number, number]|undefined; 
     // range determined from data
@@ -249,7 +252,8 @@ export class WaveFunctionPlot extends HTMLElement implements QmWidget {
 
     /* initialize(results: Array<QuantumSimulationResult>): void {*/
     initialize(settings: Array<SimulationParameters>): void {
-        const ids: Array<string> = settings.map(r => r.id);
+        const qmResults: Array<SimulationParameters> = settings.filter(s => !!(s as QuantumSettings).valueRange);
+        const ids: Array<string> = qmResults.map(r => r.id);
         if (ids.length === 0) { 
             this.clear();
             return;
@@ -257,7 +261,7 @@ export class WaveFunctionPlot extends HTMLElement implements QmWidget {
         let rangeField = this.#waveFunctionType;
         if (this.#representation === "p")
             rangeField = rangeField + "P";
-        const ranges0 = settings.map(s => (s as QuantumSettings).valueRange).filter(r => r);
+        const ranges0 = qmResults.map(s => (s as QuantumSettings).valueRange);
         const ranges: Array<[number, number]|undefined> = ranges0.map(wfRanges => wfRanges[rangeField]);
         if (ranges.find(r => r !== undefined) === undefined) {
             this.clear();
@@ -286,7 +290,7 @@ export class WaveFunctionPlot extends HTMLElement implements QmWidget {
         for (const id of ids) {
             idx++;
             /*const colors: [string, string, string] = [ColorPalette.getColor(idx, 0), ColorPalette.getColor(idx, 1), ColorPalette.getColor(idx, 2)]*/
-            const color = settings[idx].color.toString();
+            const color = qmResults[idx].color.toString();
             const psiSquared: Series = {
                 label: multiIds ? "|" + psiLabel +"_" + id +"|" : "|" + psiLabel +"|",
                 //fill // TODO color
@@ -334,7 +338,7 @@ export class WaveFunctionPlot extends HTMLElement implements QmWidget {
             this.#chart.addSeries(psiSquared);
             this.#chart.addSeries(psiReal);
             this.#chart.addSeries(psiImg);
-            if (!potentialAdded && (this.#waveFunctionType === "psi" || settings[idx].V || settings[idx].V_coefficients)) {
+            if (!potentialAdded && (this.#waveFunctionType === "psi" || qmResults[idx].V || qmResults[idx].V_coefficients)) {
                 // TODO remember which potential is shown!
                 potentialAdded = true;
                 const V: Series = {
@@ -357,15 +361,26 @@ export class WaveFunctionPlot extends HTMLElement implements QmWidget {
             
         }
         this.#activeIds = ids;
-        const VMin = Math.min(...settings.map(s => s.potentialValueRange[0]));
-        const VMax = Math.min(...settings.map(s => s.potentialValueRange[1]));
+        const VMin = Math.min(...qmResults.map(s => s.potentialValueRange[0]));
+        const VMax = Math.min(...qmResults.map(s => s.potentialValueRange[1]));
         this.#ERange = [VMin, VMax];
         this.#chart.setData(this.#chart.series.map(() => []) as any);
     }
 
     set(state: Array<QuantumSystem|QuantumSystemResidual>): void {
-        // @ts-ignore
-        state = state.filter(s => this.#waveFunctionType === "phi" ? !!s.phi : !!s.psi);
+        if (!this.#qmResultsAndFieldPresent) {
+            if (this.#representation === "p") {
+                // @ts-ignore
+                this.#qmResultsAndFieldPresent = state.map(s => this.#waveFunctionType === "phi" ? !!s.phiP : !!s.psiP);    
+            } else {
+                // @ts-ignore
+                this.#qmResultsAndFieldPresent = state.map(s => this.#waveFunctionType === "phi" ? !!s.phi : !!s.psi);    
+            }
+        }
+        /**
+         * Filter out classical results and results with missing fields for the present config
+         */
+        state = state.filter((_, idx) => this.#qmResultsAndFieldPresent[idx]);
         if (!(state.length > 0) || !this.#chart)
             return;
         const coords: Array<Array<number>> = this.#representation === "p" ?
@@ -461,6 +476,7 @@ export class WaveFunctionPlot extends HTMLElement implements QmWidget {
 
     clear(): void {
         this.hidden = true;
+        this.#qmResultsAndFieldPresent = undefined;
         if (!this.#chart)
             return;
         // remove old series

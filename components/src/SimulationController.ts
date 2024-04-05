@@ -1,17 +1,16 @@
 import { ColorRgba } from "./Color.js";
 import { DatasetsGrid } from "./DatasetsGrid.js";
-import { FileUpload } from "./FileUpload.js";
 import { SimulationControls } from "./SimulationControls.js";
-import { ClassicalSettings, QmWidget, QuantumSettings, SimulationParameters, SimulationResult, SimulationResultClassical, SimulationResultQm, SimulationSettings, SimulationState, SimulationStateListener, SimulationSystem, simulationSettings } from "./types.js";
+import { QmWidget, SimulationParameters, SimulationResult, SimulationSettings, SimulationState, SimulationStateListener, SimulationSystem, simulationSettings } from "./types.js";
 
 /**
- * TODO support multiple uploads 
  * The glue code between the different widgets
  */
 export class SimulationController implements SimulationStateListener {
 
     readonly #controlsListener: EventListener;
     #currentResults: Array<SimulationResult> = [];
+    #currentSettings: Array<SimulationParameters> = [];
     #activeSimulation: SimulationRun|undefined = undefined;
     //#currentResult: SimulationResult|undefined = undefined;
 
@@ -22,13 +21,19 @@ export class SimulationController implements SimulationStateListener {
         const result: SimulationResult = event.detail;
         const widgets0 = this._widgets;
         const widgets = Array.isArray(widgets0) ? widgets0 : widgets0();
-        this._restart([result]);
-        const params0: SimulationSettings = simulationSettings(result);
         // TODO color etc
-        const params: SimulationParameters = {...params0 as any, id: result.id, color: new ColorRgba([255,0,0,1]) };
-        widgets.forEach(w => w.initialize([params]));
-        // TODO support multiple
-        widgets.filter(w => w.initializeValues).forEach(w => w.initializeValues([result]));
+        const params0: SimulationSettings = simulationSettings(result);
+        const clIdx: number = this.#currentResults.length % 3;
+        const color: [number,number,number,number] = [0,0,0,1];
+        color[clIdx] = 255;
+        const params: SimulationParameters = {...params0 as any, id: result.id, color: new ColorRgba(color) };
+        const newResults = [...this.#currentResults, result];
+        const newSettings = [...this.#currentSettings, params];
+        this.#currentResults = newResults;
+        this.#currentSettings = newSettings;
+        this._restart(newResults);
+        widgets.forEach(w => w.initialize(newSettings));
+        widgets.filter(w => w.initializeValues).forEach(w => w.initializeValues(newResults));
         this._ctrl.onProgress(0);
         this.stateChanged(SimulationState.INITIALIZED);
         this._datasetGrid?.addResultDataset(result);
