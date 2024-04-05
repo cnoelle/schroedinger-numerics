@@ -252,6 +252,7 @@ export class WaveFunctionPlot extends HTMLElement implements QmWidget {
 
     /* initialize(results: Array<QuantumSimulationResult>): void {*/
     initialize(settings: Array<SimulationParameters>): void {
+        this.#qmResultsAndFieldPresent = undefined;
         const qmResults: Array<SimulationParameters> = settings.filter(s => !!(s as QuantumSettings).valueRange);
         const ids: Array<string> = qmResults.map(r => r.id);
         if (ids.length === 0) { 

@@ -3,6 +3,7 @@ import { QuantumSettings, SimulationParameters, SimulationResult, SimulationResu
 
 /**
  * Dataset displayed in menu
+ * TODO dispatch events: color changed, dataset deleted; and handle them in controller
  */
 export class DatasetsGrid extends HTMLElement {
 
@@ -37,7 +38,8 @@ export class DatasetsGrid extends HTMLElement {
     constructor() {
         super();
         const style: HTMLStyleElement = document.createElement("style");
-        style.textContent = ".dataset-container { padding-left: 0.2em; }";
+        style.textContent = ".dataset-container { padding-left: 0.2em; } "
+            + ".title-container { display: flex; column-gap: 1em;}";
         const shadow: ShadowRoot = this.attachShadow({mode: "open"});
         shadow.appendChild(style);
     }
@@ -61,7 +63,15 @@ export class DatasetsGrid extends HTMLElement {
         const settings: SimulationSettings = simulationSettings(result);
         const isQuantum: boolean = settings.type === "qm";
         const frag: DocumentFragment = document.createDocumentFragment();
-        JsUtils.createElement("div", {text: result.id, parent: frag, dataset: new Map([["id", result.id]])});
+
+        const titleContainer = JsUtils.createElement("div", {parent: frag, classes: ["title-container"], dataset: new Map([["id", result.id]])});
+        // title
+        JsUtils.createElement("div", {text: result.id, parent: titleContainer});
+        JsUtils.createElement("div", {parent: titleContainer}); // TODO color selection
+        const deleteBtn = JsUtils.createElement("input", {parent: JsUtils.createElement("div", {parent: titleContainer}),
+                text: "delete", title: "Remove this dataset", attributes: new Map([["type", "button"]])}); 
+        deleteBtn.addEventListener("click", () => this.removeResultDataset(result.id));
+        
         const container: HTMLElement = JsUtils.createElement("div", {parent: frag, dataset: new Map([["id", result.id]]), classes: ["dataset-container"]});
         const list = JsUtils.createElement("ul", {parent: container});
         // TODO
@@ -86,6 +96,8 @@ export class DatasetsGrid extends HTMLElement {
     } 
 
     removeResultDataset(id: string) {
+        // TODO handle event!
+        this.dispatchEvent(new CustomEvent<string>("deleted", {detail: id}));
         this.shadowRoot.querySelectorAll("[data-id='"+ id + "']").forEach(el => el.remove());
     } 
 

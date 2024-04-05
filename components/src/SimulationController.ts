@@ -31,7 +31,7 @@ export class SimulationController implements SimulationStateListener {
         const newSettings = [...this.#currentSettings, params];
         this.#currentResults = newResults;
         this.#currentSettings = newSettings;
-        this._restart(newResults);
+        this._restart();
         widgets.forEach(w => w.initialize(newSettings));
         widgets.filter(w => w.initializeValues).forEach(w => w.initializeValues(newResults));
         this._ctrl.onProgress(0);
@@ -39,12 +39,28 @@ export class SimulationController implements SimulationStateListener {
         this._datasetGrid?.addResultDataset(result);
     }
 
+    // TODO not working yet
+    readonly #deletionListener = (event: CustomEvent<string>) => {
+        const idx = this.#currentResults.findIndex(result => result.id === event.detail);
+        if (idx > 0) {
+            this.#currentResults.splice(idx, 1);
+            this.#currentSettings.splice(idx, 1);
+            this._restart();
+            if (this.#currentResults.length === 0) {
+                const widgets0 = this._widgets;
+                const widgets = Array.isArray(widgets0) ? widgets0 : widgets0();
+                widgets.forEach(w => w.clear());
+            }
+        }
+    };
+
     constructor(
             private readonly _ctrl: SimulationControls,
             private readonly _fileUploads: Array<HTMLElement>, 
             private readonly _widgets: Array<QmWidget>|(() => Array<QmWidget>),
             private readonly _datasetGrid?: DatasetsGrid) {
         _fileUploads.forEach(upload => upload.addEventListener("upload", this.#listener));
+        _datasetGrid?.addEventListener("deleted", this.#deletionListener);
         const controlsListener = ((event: Event) => {
             const type = event.type;
             switch (type) {
@@ -116,8 +132,8 @@ export class SimulationController implements SimulationStateListener {
     }
 
 
-    private _restart(results: Array<SimulationResult>) {
-        this.#currentResults = results;
+    private _restart() {
+        const results = this.#currentResults;
         this.#activeSimulation?.pause();
         if (results.length === 0) {
             this.stateChanged(SimulationState.UNSET);

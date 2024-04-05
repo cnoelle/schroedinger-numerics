@@ -21,8 +21,12 @@ export class JsUtils {
             el.title = options.title;
         if (options?.attributes)
             options.attributes.forEach((value, key) => el.setAttribute(key, value));
-        if (options?.text)
-            el.innerText = options.text;
+        if (options?.text) {
+            if (tag === "input")
+                (el as HTMLInputElement).value = options.text;
+            else
+                el.innerText = options.text;
+        }
         else if (options?.html)
             el.innerHTML = options.html;
         if (options?.dataset)
