@@ -229,7 +229,7 @@ class FileImport {
         const ds = new DecompressionStream("gzip");
         const decompressedStream: ReadableStream<Uint8Array> = stream.pipeThrough(ds);
         //const blob: Blob = await new Response(decompressedStream).blob();
-        return FileImport._parseWaveFunctionFileBinary(stream, progressReporter, options);
+        return FileImport._parseWaveFunctionFileBinary(decompressedStream, progressReporter, options);
     }
 
     private static _parseWaveFunctionFileBinary(stream: ReadableStream, progressReporter: AggregatingReporter, 

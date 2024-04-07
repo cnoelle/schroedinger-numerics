@@ -169,7 +169,7 @@ function _writePointsLine(file::IO, waveFunction::AbstractWaveFunction, represen
         iMax = maximum(imags)
         maxVal = maximum([rMax, iMax, -rMin, -iMin])
         binarySettings = BinarySettings(maxVal)
-        # in each row, we start with the min max values as Float32
+        # in each row, we start with the max value as Float32
         write(file, convert(Float32, maxVal))
     end
     # TODO normalize?
@@ -191,18 +191,35 @@ function _writePointsLine(file::IO, waveFunction::AbstractWaveFunction, represen
     end
 end # _writePointsLine
 
-function _writePotentialLine(file::IO, values0::AbstractArray{<:Real, 1})
+function _writePotentialLine(file::IO, values0::AbstractArray{<:Real, 1}, isBinary::Bool=false)
     start::Bool = true
+    binarySettings::Union{BinarySettings, Nothing}=nothing
+    if isBinary
+        rMin = minimum(values0)
+        rMax = maximum(values0)
+        maxVal = maximum([rMax, -rMin])
+        binarySettings = BinarySettings(maxVal)
+        # in each row, we start with the max value as Float32
+        write(file, convert(Float32, maxVal))
+    end
     # TODO normalize?
     for value in values0
-        if !start
+        if !start && !isBinary
             write(file, ",")
         else
             start=false
         end # 
-        write(file, "$(Printf.@sprintf("%.4g", value))")
+        if !isBinary
+            write(file, "$(Printf.@sprintf("%.4g", value))")
+        else
+            r::Real = value/binarySettings.maxValue * 127  # value range -127..127, 0=0
+            rb = trunc(Int8, r)
+            write(file, rb)
+        end #if
     end # for real
-    write(file, "\n")
+    if !isBinary
+        write(file, "\n")
+    end
 end # _writePotentialLine
 
 function _writeObservablesLine(file::IO,

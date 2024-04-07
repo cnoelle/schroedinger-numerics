@@ -51,7 +51,9 @@ end
 function trace(system::QmSystemResidual, timeSteps::Int=1000;
         folder::String = "./results",
         momentumRepresentationPsi::Union{MomentumRepresentation, Nothing}=nothing,
-        momentumRepresentationPhi::Union{MomentumRepresentation, Nothing}=nothing) # io::IO
+        momentumRepresentationPhi::Union{MomentumRepresentation, Nothing}=nothing,
+        binary::Bool=false,
+        compress::Bool=false) # io::IO
     representation::PositionRepresentation = system.propagator.representation
     if !(representation isa PositionRepresentation)
         throw(ErrorException("Can only handle position space, currently")) # XXX why?
@@ -72,33 +74,60 @@ function trace(system::QmSystemResidual, timeSteps::Int=1000;
     Base.Filesystem.mkpath(folder)
     settingsFile0 = joinpath(folder, "settings.json")
     pointsFile0 = joinpath(folder, "points.csv")
-    psiFile0 = joinpath(folder, "psi.csv")
-    psiTildeFile0 = joinpath(folder, "psiTilde.csv")
+    psiFile0 = joinpath(folder, binary ? "psi.dat" : "psi.csv")
+    psiTildeFile0 = joinpath(folder, binary ? "phi.dat" : "phi.csv")
     observablesFile0 = joinpath(folder, "observables.csv")
     observablesQmFile0 = joinpath(folder, "observablesQm.csv")
-    psiPFile::Union{String, Nothing} = isnothing(momentumRepresentationPsi) ? nothing : joinpath(folder, "psiP.csv")
-    phiPFile::Union{String, Nothing} = isnothing(momentumRepresentationPsi) ? nothing : joinpath(folder, "phiP.csv")
-    VtFile0 = joinpath(folder, "V_t.csv")
+    psiPFile::Union{String, Nothing} = isnothing(momentumRepresentationPsi) ? nothing : joinpath(folder, binary ? "psiP.dat" : "psiP.csv")
+    phiPFile::Union{String, Nothing} = isnothing(momentumRepresentationPsi) ? nothing : joinpath(folder, binary ? "phiP.dat" : "phiP.csv")
+    VtFile0 = joinpath(folder, binary ? "V_t.dat" : "V_t.csv")
+    if compress
+        psiFile0 = psiFile0 * ".gz"
+        psiTildeFile0 = psiTildeFile0 * ".gz"
+        VtFile0 = VtFile0 * ".gz"
+        if !isnothing(psiPFile)
+            psiPFile = psiPFile * ".gz"
+            phiPFile = phiPFile * ".gz"
+        end
+    end
     open(settingsFile0, "w") do settingsFile
         _writeSettingsQm(system, settingsFile, points=psiRepresentation.points)
     end # settingsFile
     open(pointsFile0, "w") do filePoints
-    open(psiFile0, "w") do filePsi
-    open(psiTildeFile0, "w") do filePsiTilde 
+    #open(psiFile0, "w") do filePsi
+    filePsi = open(psiFile0, "w")
+    #open(psiTildeFile0, "w") do filePsiTilde 
+    filePsiTilde = open(psiTildeFile0, "w")
     open(observablesFile0, "w") do fileObservables
     open(observablesQmFile0, "w") do fileObservablesQm
-    open(VtFile0, "w") do filePotential
+    #open(VtFile0, "w") do filePotential
+    filePotential = open(VtFile0, "w")
     if !isnothing(psiPFile)
         filePsiP = open(psiPFile, "w")
-        _writePointsHeader(filePsiP, momentumRepresentationPsi.points)
     end
     if !isnothing(phiPFile)
         filePhiP = open(phiPFile, "w")
-        _writePointsHeader(filePhiP, momentumRepresentationPhi.points)
     end
-        _writePointsHeader(filePsiTilde, points0)
-        _writePointsHeader(filePsi, psiRepresentation.points) # assume a PositionRepresentation as well
-        _writePointsHeader(filePotential, points0, "V")
+    if compress
+        filePsi = CodecZlib.GzipCompressorStream(filePsi)
+        filePsiTilde = CodecZlib.GzipCompressorStream(filePsiTilde)
+        filePotential = CodecZlib.GzipCompressorStream(filePotential)
+        if !isnothing(psiPFile)
+            filePsiP = CodecZlib.GzipCompressorStream(filePsiP)
+        end
+        if !isnothing(phiPFile)
+            filePhiP = CodecZlib.GzipCompressorStream(filePhiP)
+        end
+    end # 
+    if !isnothing(psiPFile)
+        _writePointsHeader(filePsiP, momentumRepresentationPsi.points, nothing, binary)
+    end
+    if !isnothing(phiPFile)
+        _writePointsHeader(filePhiP, momentumRepresentationPhi.points, nothing, binary)
+    end
+        _writePointsHeader(filePsiTilde, points0, nothing, binary)
+        _writePointsHeader(filePsi, psiRepresentation.points, nothing, binary) # assume a PositionRepresentation as well
+        _writePointsHeader(filePotential, points0, "V", binary)
         write(fileObservables, "x, x^2, p, p^2, E\n")
         write(fileObservablesQm, "x, x^2, p, p^2, E\n")
         write(filePoints, "x, p, E\n")
@@ -107,18 +136,18 @@ function trace(system::QmSystemResidual, timeSteps::Int=1000;
             classicalEnergy::Real = pnt.p^2 / 2 / mass + V(pnt.q)
             Phi::AbstractWaveFunction = system.currentState.Phi
             psi::AbstractWaveFunction = getPsi(system.currentState)
-            _writePointsLine(filePsiTilde, Phi, representation)
-            _writePointsLine(filePsi, psi, psiRepresentation)
+            _writePointsLine(filePsiTilde, Phi, representation, binary)
+            _writePointsLine(filePsi, psi, psiRepresentation, binary)
             if !isnothing(psiPFile)
                 # XXX need to convert the (Weyl) TranslatedWaveFunction into a PointsWaveFunction
                 psi = asWavefunction(values(psi, psiRepresentation), psiRepresentation)
-                _writePointsLine(filePsiP, psi, momentumRepresentationPsi)
+                _writePointsLine(filePsiP, psi, momentumRepresentationPsi, binary)
             end
             if !isnothing(phiPFile)
-                _writePointsLine(filePhiP, Phi, momentumRepresentationPhi)
+                _writePointsLine(filePhiP, Phi, momentumRepresentationPhi, binary)
             end
             if !isnothing(V)
-                _writePotentialLine(filePotential, LinearAlgebra.diag(asCircleOperator(V, pnt, representation)))
+                _writePotentialLine(filePotential, LinearAlgebra.diag(asCircleOperator(V, pnt, representation)), binary)
             end
             ## The below values would become extremely unreliable in case of high classical contributions (strong oscillations)
             #xVal::Real = expectationValue(psi, x, psiRepresentation)
@@ -149,11 +178,14 @@ function trace(system::QmSystemResidual, timeSteps::Int=1000;
     if !isnothing(phiPFile)
         close(filePhiP)
     end
-    end # open filePotential
+    #end # open filePotential
+    close(filePotential)
     end # open fileObserservablesQm
     end # open fileObservables
-    end # filePhi
-    end # open filePsi
+    #end # filePsiTilde
+    close(filePsiTilde)
+    #end # open filePsi
+    close(filePsi)
     end # open filePpoints
     return system
     
