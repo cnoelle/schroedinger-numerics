@@ -214,7 +214,7 @@ function _writePotentialLine(file::IO, values0::AbstractArray{<:Real, 1}, isBina
         else
             r::Real = value/binarySettings.maxValue * 127  # value range -127..127, 0=0
             rb = trunc(Int8, r)
-            write(file, rb)
+            write(file, rb, convert(Int8, 0))
         end #if
     end # for real
     if !isBinary

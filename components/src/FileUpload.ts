@@ -757,7 +757,7 @@ export class FileUpload extends HTMLElement {
         const psiTilde: File|undefined = files.find(fl => fl.name.toLowerCase().startsWith("psitilde.") 
             || fl.name.toLowerCase().startsWith("phi."));
         const phiP: File|undefined = files.find(fl => fl.name.toLowerCase().startsWith("phip."));
-        const potential: File|undefined = files.find(fl => fl.name.toLowerCase() === "v_t.csv");
+        const potential: File|undefined = files.find(fl => fl.name.toLowerCase().startsWith("v_t."));
         const observablesQm: File|undefined = files.find(fl => fl.name.toLowerCase() === "observables.csv");
         const isQuantum: boolean = !!psi && !!observables;
         const isClassical: boolean = !!points;
