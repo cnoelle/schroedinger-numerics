@@ -1,6 +1,6 @@
 import uPlot, { AlignedData, Options, Series } from "uplot";
 import { JsUtils } from "./JsUtils.js";
-import {  Coordinates, QmWidget, QuantumSettings, QuantumSystem, QuantumSystemResidual, SimulationParameters, WaveFunctionData } from "./types.js";
+import {  Coordinates, QmWidget, QuantumResidualSettings, QuantumSettings, QuantumSystem, QuantumSystemResidual, SimulationParameters, VisualizationSettings, WaveFunctionData } from "./types.js";
 
 
 export class WaveFunctionPlot extends HTMLElement implements QmWidget {
@@ -40,6 +40,7 @@ export class WaveFunctionPlot extends HTMLElement implements QmWidget {
     // range determined from data
     #yRange: [number, number] = [0, 1];  // TODO [number, number]
     #ERange: [number, number] = [0, 1];
+    #currentSettings: Array<QuantumSettings&VisualizationSettings> = [];
     #activeIds: Array<string> = [];
 
     // TODO when any of the below change, we need to react
@@ -252,6 +253,7 @@ export class WaveFunctionPlot extends HTMLElement implements QmWidget {
     initialize(settings: Array<SimulationParameters>): void {
         this.#qmResultsAndFieldPresent = undefined;
         const qmResults: Array<SimulationParameters> = settings.filter(s => !!(s as QuantumSettings).valueRange);
+        this.#currentSettings = qmResults as any;
         const ids: Array<string> = qmResults.map(r => r.id);
         if (ids.length === 0) { 
             this.clear();
@@ -356,8 +358,10 @@ export class WaveFunctionPlot extends HTMLElement implements QmWidget {
             
         }
         this.#activeIds = ids;
-        const VMin = Math.min(...qmResults.map(s => s.potentialValueRange[0]));
-        const VMax = Math.min(...qmResults.map(s => s.potentialValueRange[1]));
+        const potentialValues: Array<[number, number]> = this.#waveFunctionType === "psi" ? qmResults.map(s => s.potentialValueRange) :
+            qmResults.filter(s => (s as QuantumResidualSettings).phiPotentialValueRange).map(s => (s as QuantumResidualSettings).phiPotentialValueRange);
+        const VMin = potentialValues.length === 0 ? 0 : Math.min(...potentialValues.map(V => V[0]));
+        const VMax = potentialValues.length === 0 ? 1 : Math.max(...potentialValues.map(V => V[1]));
         this.#ERange = [VMin, VMax];
         this.#chart.setData(this.#chart.series.map(() => []) as any);
     }
@@ -411,12 +415,10 @@ export class WaveFunctionPlot extends HTMLElement implements QmWidget {
                 const img: Array<number> = waveFunction.values.map(imagMapper);
                 //const data: AlignedData = [x, abs, real, img, slice.settings.V];
                 data.push(...[abs, real, img]);
-                // @ts-ignore
-                if (!potentialAdded && (this.#waveFunctionType === "psi" && result.psiPotential || 
-                        // @ts-ignore
-                        this.#waveFunctionType === "phi" && result.phiPotential)) {
-                    // @ts-ignore
-                    const V: Array<number> = this.#waveFunctionType === "phi" ? result.phiPotential : result.psiPotential;
+                if (!potentialAdded && (this.#waveFunctionType === "psi" && this.#currentSettings[idx].V || 
+                        this.#waveFunctionType === "phi" && (result as QuantumSystemResidual).phiPotential)) {
+                    const V: Array<number> = this.#waveFunctionType === "phi" ? (result as QuantumSystemResidual).phiPotential : 
+                        this.#currentSettings[idx].V;
                     data.push(V);
                     potentialAdded = true;
                 }
@@ -472,6 +474,7 @@ export class WaveFunctionPlot extends HTMLElement implements QmWidget {
     clear(): void {
         this.hidden = true;
         this.#qmResultsAndFieldPresent = undefined;
+        this.#currentSettings = [];
         if (!this.#chart)
             return;
         // remove old series

@@ -174,6 +174,10 @@ export type QuantumSettings = SimulationSettings & {
     readonly valueRange?: WaveFunctionRanges;
 } & Potential;
 
+export type QuantumResidualSettings = QuantumSettings & {
+    readonly phiPotentialValueRange?: [number, number];
+};
+
 export type ClassicalSettings = SimulationSettings & {
     readonly type: "classical";
 } & Potential;
@@ -183,7 +187,7 @@ export interface VisualizationSettings {
     color: ColorRgba;
 }
 
-export type SimulationParameters = (QuantumSettings|ClassicalSettings)&VisualizationSettings;
+export type SimulationParameters = (QuantumSettings|QuantumResidualSettings|ClassicalSettings)&VisualizationSettings;
 
 export interface QmWidget {
     initialize(settings: Array<SimulationParameters>): void;

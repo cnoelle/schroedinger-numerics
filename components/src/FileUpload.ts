@@ -1,4 +1,4 @@
-import { ClassicalSettings, ClassicalSystem, ExpectationValues, PhaseSpacePoint, QuantumSettings, QuantumSystem, QuantumSystemResidual, SimulationParameters, SimulationResult, SimulationResultClassical, SimulationResultQm, SimulationSettings, WaveFunctionData } from "./types.js";
+import { ClassicalSettings, ClassicalSystem, ExpectationValues, PhaseSpacePoint, QuantumResidualSettings, QuantumSettings, QuantumSystem, QuantumSystemResidual, SimulationParameters, SimulationResult, SimulationResultClassical, SimulationResultQm, SimulationSettings, WaveFunctionData } from "./types.js";
 import { JsUtils } from "./JsUtils.js";
 
 class FileImport {
@@ -436,7 +436,7 @@ class FileImport {
             return qmSystem;
         });
         const potRange: [number, number]|undefined = FileImport._potentialRange(settings1a, waveFct[0]);
-        const settings2: QuantumSettings = {...settings1a, potentialValueRange: potRange};
+        let settings2: QuantumResidualSettings = {...settings1a, potentialValueRange: potRange};
         if (result[4] && result[6] && classicalResults) {
             const x2 = result[4][0];
             const phi = result[4][1];
@@ -457,6 +457,8 @@ class FileImport {
             const hasPhiP: boolean = !!result[5];
             const phiP1 = hasPhiP ? result[5][1] : undefined;
             const pPhi = hasPhiP ? result[5][0] : undefined;
+            let phiPotMin: number|undefined = undefined;
+            let phiPotMax: number|undefined = undefined;
             const waveFctPhi: Array<QuantumSystemResidual> = phi.map((values: Array<[number, number]>, idx: number) => {
                 const psiResults = waveFct[idx];
                 const observablesPhi: ExpectationValues = obsQm[idx];
@@ -473,11 +475,21 @@ class FileImport {
                     } : undefined,
                     phiPotential: potential2 ? potential2[idx] : undefined
                 };
+                if (systemPhi.phiPotential) {
+                    const pMin = Math.min(...systemPhi.phiPotential);
+                    const pMax = Math.max(...systemPhi.phiPotential);
+                    if (phiPotMin === undefined || pMin < phiPotMin)
+                        phiPotMin = pMin;
+                    if (phiPotMax === undefined || pMax > phiPotMax)
+                        phiPotMax = pMax;
+                }
                 const phaseSpaceResult: ClassicalSystem = classicalResults.timesteps[idx];
                 const overallResult: QuantumSystemResidual = {...psiResults, ...systemPhi, ...phaseSpaceResult};
                 return overallResult;
             });
             waveFct = waveFctPhi;
+            if (phiPotMin !== undefined)
+                settings2 = {...settings2, phiPotentialValueRange: [phiPotMin, phiPotMax]};
         }
         return {
             id: id,
