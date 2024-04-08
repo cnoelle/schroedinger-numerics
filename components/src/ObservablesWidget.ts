@@ -20,7 +20,7 @@ export class ObservablesWidget extends HTMLElement implements QmWidget {
 
     static get observedAttributes() {
         return ["width", "height", /* "wave-function-type", "representation", */
-            "observable-type", "title", "show-legend"]; 
+            "observable-type", "plot-title", "show-legend"]; 
     }
 
     /**
@@ -71,12 +71,12 @@ export class ObservablesWidget extends HTMLElement implements QmWidget {
         return this.#canvas.height;
     }
 
-    set title(title: string|undefined) {
-        this.setAttribute("title", title);
+    set plotTitle(title: string|undefined) {
+        this.setAttribute("plot-title", title);
     }
 
-    get title(): string|undefined {
-        return this.getAttribute("title") || undefined;
+    get plotTitle(): string|undefined {
+        return this.getAttribute("plot-title") || undefined;
     }
 
     set showLegend(show: boolean|undefined) {
@@ -113,7 +113,7 @@ export class ObservablesWidget extends HTMLElement implements QmWidget {
             else
                 this.height = num;
             break;
-        case "title":
+        case "plot-title":
             this._setTitle();
             break;
         case "show-legend":
@@ -133,7 +133,7 @@ export class ObservablesWidget extends HTMLElement implements QmWidget {
     readonly #titleEl: HTMLDivElement;
 
     private _setTitle() {
-        const title = this.getAttribute("title") || (this.#observableType === "p" ? "Phase Space" : "Energy");
+        const title = this.getAttribute("plot-title") || (this.#observableType === "p" ? "Phase Space" : "Energy");
         this.#titleEl.innerText = title;
     }
 

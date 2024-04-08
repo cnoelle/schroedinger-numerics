@@ -11,7 +11,7 @@ export class WaveFunctionPlot extends HTMLElement implements QmWidget {
     static get observedAttributes() {
         return ["width", "height", "absolute-values", "show-norm", "show-real-imag", "show-potential",
                 "value-range",
-                "wave-function-type", "representation", "title"]; 
+                "wave-function-type", "representation", "plot-title"]; 
     }
 
     /**
@@ -115,12 +115,12 @@ export class WaveFunctionPlot extends HTMLElement implements QmWidget {
         return this.#waveFunctionType;
     }
 
-    set title(title: string|undefined) {
-        this.setAttribute("title", title);
+    set plotTitle(title: string|undefined) {
+        this.setAttribute("plot-title", title);
     }
 
-    get title(): string|undefined {
-        return this.getAttribute("title") || undefined;
+    get plotTitle(): string|undefined {
+        return this.getAttribute("plot-title") || undefined;
     }
 
     set representation(representation: "x"|"p") {
@@ -208,7 +208,7 @@ export class WaveFunctionPlot extends HTMLElement implements QmWidget {
             const height: number = parseInt(this.getAttribute("height")) 
                 || /*this.#element.getBoundingClientRect().height ||*/ 600;
             const symb = (this.#waveFunctionType === "phi" ? "Φ" : "ψ");
-            const title = this.title || (this.representation === "x" ? symb + "(x)"
+            const title = this.getAttribute("plot-title") || (this.representation === "x" ? symb + "(x)"
                 : "<math xmlns=\"http://www.w3.org/1998/Math/MathML\"><mover><mrow>"
                     + symb + "</mrow><mo>~</mo></mover></math>(p)");
             const options: Options = {

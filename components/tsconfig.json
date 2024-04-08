@@ -6,9 +6,9 @@
         "module": "ESNext",
         "target": "ESNext",
         "allowSyntheticDefaultImports": true,
-        "declaration": false,
+        "declaration": true,
         "moduleResolution": "node",
         "noImplicitAny": true,
-        "sourceMap": false,
+        "sourceMap": true,
     }
 }

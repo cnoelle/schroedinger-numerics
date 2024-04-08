@@ -1,10 +1,18 @@
 {
-  "name": "@schroedinger-numerics/components",
+  "name": "@schroedinger-residual/components",
   "version": "1.0.0",
   "description": "",
   "type": "module",
   "exports": {
-    "./PhaseSpaceDensityWidget": "./dist/PhaseSpaceDensityWidget.js"
+    ".": "./dist/types.js",
+    "./WaveFunctionPlot": "./dist/WaveFunctionPlot.js",
+    "./PhaseSpaceDensityWidget": "./dist/PhaseSpaceDensityWidget.js",
+    "./ObservablesWidget": "./dist/ObservablesWidget.js",
+    "./FileUpload": "./dist/FileUpload.js",
+    "./DatasetsGrid": "./dist/DatasetsGrid.js",
+    "./SimulationControls": "./dist/SimulationControls.js",
+    "./SimulationController": "./dist/SimulationController.js",
+    "./DemoMenu": "./dist/DemoMenu.js"
   },
   "files": [
     "dist",
