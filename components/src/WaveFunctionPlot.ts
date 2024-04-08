@@ -226,7 +226,7 @@ export class WaveFunctionPlot extends HTMLElement implements QmWidget {
                     values: (self, ticks) => ticks.map(rawValue => JsUtils.formatNumber(rawValue)),
                 }]
             };
-            if (this.#showPotential) {
+            if (this.#showPotential && this.#representation !== "p") {
                 options.scales["E"] = { range: (self, min, max) => this.#ERange };
                 options.axes.push({
                     scale: "E",
@@ -282,7 +282,7 @@ export class WaveFunctionPlot extends HTMLElement implements QmWidget {
             this.#chart.delSeries(idx);
         }
         let idx: number = -1;
-        let potentialAdded: boolean = false;
+        let potentialAdded: boolean = this.#representation === "p";
         const psiLabel: string = this.#waveFunctionType === "phi" ? "Φ" : "ψ";
         for (const id of ids) {
             idx++;
@@ -399,7 +399,7 @@ export class WaveFunctionPlot extends HTMLElement implements QmWidget {
         let wf: string = this.#waveFunctionType;  // psi or phi
         if (this.#representation === "p")
             wf += "P";
-        let potentialAdded: boolean = false;
+        let potentialAdded: boolean = this.#representation === "p"; 
         const realMapper = this.#absoluteValues ? (xy: [number, number]) => Math.abs(xy[0])
             : (xy: [number, number]) => xy[0];
         const imagMapper = this.#absoluteValues ? (xy: [number, number]) => Math.abs(xy[1])

@@ -225,7 +225,7 @@ export class PhaseSpaceDensityWidget extends HTMLElement implements QmWidget {
                 const psiXIdx = Math.round(idxX/(width-1) * (xLength-1));
                 const xVal = xAbsValues[psiXIdx];
                 for (let idxP=0; idxP<height; idxP++) {
-                    const psiPIdx = Math.round(idxP/(height-1) * (pLength-1));
+                    const psiPIdx = pLength - 1 - Math.round(idxP/(height-1) * (pLength-1));
                     const pVal = pAbsValues[psiPIdx];
                     const value = pVal * xVal;
                     const fraction = value/max;
@@ -238,11 +238,8 @@ export class PhaseSpaceDensityWidget extends HTMLElement implements QmWidget {
         }
         if (this.#grid) {
             const hbarSqrt = Math.sqrt(this.#currentParameters[0].hbar);
-            let xGridLines = Math.floor((xMax + hbarSqrt - xMin) / hbarSqrt);
-            let pGridLines = Math.floor((pMax + hbarSqrt - pMin) / hbarSqrt);
-            //const xGridLines: number = density.cellsX ? density.cellsX + 1 : 5;
-            //const pGridLines: number = density.cellsP ? density.cellsP + 1 : 5;
-            // TODO else?
+            const xGridLines = Math.floor((xMax + hbarSqrt - xMin) / hbarSqrt);
+            const pGridLines = Math.floor((pMax + hbarSqrt - pMin) / hbarSqrt);
             if (xGridLines > 0 && pGridLines > 0 && xGridLines < 100 && pGridLines < 200) {
                 this._drawGrid(width, height, {x: [xMin, xMax], p: [pMin, pMax],
                     xGridLines: xGridLines, pGridLines: pGridLines});
