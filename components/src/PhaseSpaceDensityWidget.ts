@@ -1,5 +1,5 @@
 import { JsUtils } from "./JsUtils.js";
-import { Coordinates, QmWidget, QuantumSettings, QuantumSystem, QuantumSystemResidual, SimulationParameters, SimulationSystem, VisualizationSettings, WaveFunctionData } from "./types.js";
+import { QmWidget, QuantumSettings, QuantumSystem, QuantumSystemResidual, SimulationParameters, SimulationSystem, VisualizationSettings, WaveFunctionData } from "./types.js";
 
 /**
  * A webcomponent that displays a phase space density derived from the absolute values 
@@ -35,6 +35,7 @@ export class PhaseSpaceDensityWidget extends HTMLElement implements QmWidget {
         return PhaseSpaceDensityWidget._tag;
     }
 
+    readonly #element: HTMLDivElement;
     readonly #canvas: HTMLCanvasElement;
     readonly #offscreen: OffscreenCanvas;
     /*#color: ColorRgba = new DensityColor([255, 0, 0, 1]); // initial value: red*/
@@ -55,18 +56,22 @@ export class PhaseSpaceDensityWidget extends HTMLElement implements QmWidget {
 
     constructor() {
         super();
-        const shadow: ShadowRoot = this.attachShadow({mode: "open"});
+        const shadow0: ShadowRoot = this.attachShadow({mode: "open"});
+        const element = JsUtils.createElement("div", {parent: shadow0});
         // TODO react to size changes of the canvas
         const initialWidth = parseInt(this.getAttribute("width")) || 576;
         const initialHeight = parseInt(this.getAttribute("height")) || 576;
-        const style: HTMLStyleElement = JsUtils.createElement("style", {parent: shadow});
-        JsUtils.createElement("h3", {parent: shadow, text: "Phase space density"});
-        this.#canvas = JsUtils.createElement("canvas", {parent: shadow});
+        const style: HTMLStyleElement = JsUtils.createElement("style", {parent: shadow0});
+        JsUtils.createElement("h3", {parent: element, text: "Phase space density"});
+        this.#canvas = JsUtils.createElement("canvas", {parent: element});
         this.#canvas.width = initialWidth;
         this.#canvas.height = initialHeight;
         this.#offscreen = new OffscreenCanvas(initialWidth, initialHeight); 
         style.textContent = ":host { position: relative; display: flex; flex-direction: column; "
-                + "justify-content: end; align-items: center;}";
+                + "justify-content: end; align-items: center;} "
+                + ".hidden { display: none; }";
+        element.classList.add("hidden");
+        this.#element = element;
     }
 
     connectedCallback() {
@@ -164,8 +169,12 @@ export class PhaseSpaceDensityWidget extends HTMLElement implements QmWidget {
 
     initialize(settings: Array<SimulationParameters>): void {
         // @ts-ignore
-        this.#currentParameters = settings.filter(s => s.type === "quantum");
+        this.#currentParameters = settings.filter(s => s.type === "qm" || s.type === "quantum");
         this.clear();
+        if (this.#currentParameters.length === 0)
+            this.#element.classList.add("hidden");
+        else
+            this.#element.classList.remove("hidden");
     }
 
     set(state: Array<SimulationSystem>): void {

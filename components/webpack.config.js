@@ -33,7 +33,7 @@ export default {
   },
   output: {
     filename: "[name].js",
-    path: path.resolve("./dist"),
+    path: path.resolve("./bundle"),
     library: {
       type: "module"
     },
@@ -59,7 +59,7 @@ export default {
   ],
   devServer: {
       static: [
-          { directory: path.resolve("./dist") },
+          { directory: path.resolve("./bundle") },
           { directory: path.resolve("./assets"), publicPath: "/assets" }
       ],
       compress: false,

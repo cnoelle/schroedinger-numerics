@@ -144,6 +144,7 @@ export class ObservablesWidget extends HTMLElement implements QmWidget {
     private static readonly HEIGHT_OFFSET: number = 50;
     private static readonly TICKS: number = 5;
 
+    readonly #element: HTMLElement;
     readonly #canvas: HTMLCanvasElement;
     readonly #container: HTMLElement;
     readonly #legendGrid: HTMLElement;
@@ -161,7 +162,8 @@ export class ObservablesWidget extends HTMLElement implements QmWidget {
 
     constructor() {
         super();
-        const shadow: ShadowRoot = this.attachShadow({mode: "open"});
+        const shadow0: ShadowRoot = this.attachShadow({mode: "open"});
+        const element = JsUtils.createElement("div", {parent: shadow0, classes: ["hidden"]});
 
         const style: HTMLStyleElement = document.createElement("style");
         style.textContent = ":host { position: relative; margin-left: 2em; display: flex; /* min-width: 600px; */ ;} "
@@ -169,9 +171,10 @@ export class ObservablesWidget extends HTMLElement implements QmWidget {
             + ".title-container {display: flex; flex-direction: column; align-items: center;} "
             + ".legend-grid { display: grid; grid-template-columns: auto auto 1fr; align-items: center; column-gap: 1em; } "
             + ".current-point { width: 0px; height: 0px; border: solid 5px red; border-radius: 5px; } "
-            + ".phase-space-legend { margin-bottom: 6em; align-self: end; }";
-        shadow.append(style);
-        const titleContainer = JsUtils.createElement("div", {parent: shadow, classes: ["title-container"]});
+            + ".phase-space-legend { margin-bottom: 6em; align-self: end; }"
+            + ".hidden { display: none; }";;
+        shadow0.append(style);
+        const titleContainer = JsUtils.createElement("div", {parent: element, classes: ["title-container"]});
         this.#titleEl = JsUtils.createElement("h3", {text: "Energy", parent: titleContainer});
         const container: HTMLElement = JsUtils.createElement("div", {parent: titleContainer, classes: ["position-relative"]});
 
@@ -180,7 +183,7 @@ export class ObservablesWidget extends HTMLElement implements QmWidget {
         canvas.height = ObservablesWidget.HEIGHT + 2 * ObservablesWidget.HEIGHT_OFFSET;
 
 
-        const legend: HTMLElement = JsUtils.createElement("fieldset", { classes: ["phase-space-legend"], parent: shadow});
+        const legend: HTMLElement = JsUtils.createElement("fieldset", { classes: ["phase-space-legend"], parent: element});
         const legendTitle: HTMLElement = JsUtils.createElement("legend", {parent: legend, text: "Datasets"});
         const legendGrid: HTMLElement = JsUtils.createElement("div", {parent: legend, classes: ["legend-grid"]});
         this.#legendGrid = legendGrid;
@@ -189,6 +192,7 @@ export class ObservablesWidget extends HTMLElement implements QmWidget {
 
         this.#canvas = canvas;
         this.#container = container;
+        this.#element = element;
     }
 
     private _setLegendVisibility() {
@@ -277,6 +281,10 @@ export class ObservablesWidget extends HTMLElement implements QmWidget {
         this.#currentParameters = [...settings];
         this.#currentMinMax = undefined;
         this._setLegendVisibility();
+        if (this.#currentParameters.length === 0)
+            this.#element.classList.add("hidden");
+        else
+            this.#element.classList.remove("hidden");
     }
 
     private _minMax(values: Array<Partial<ExpectationValues>>): {min: ExpectationValues, max: ExpectationValues} {

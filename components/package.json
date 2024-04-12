@@ -21,7 +21,8 @@
   "types": "index.d.ts",
   "scripts": {
     "start": "webpack serve --mode development --hot --progress",
-    "build": "del-cli dist && tsc",
+    "build": "del-cli bundle && webpack build --mode production",
+    "compile": "del-cli dist && tsc",
     "prepack": "npm run build"
   },
   "keywords": [],

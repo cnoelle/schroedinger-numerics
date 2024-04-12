@@ -2,13 +2,13 @@
     position: absolute;    
     border-right: 1px solid black;
     height: 100%;
-    max-width: 300px;
+    max-width: 350px;
     padding-right: 2em;
 }
 
 
 .menu-margin {
-    margin-left: 350px;
+    margin-left: 400px;
 }
 
 .menu-close {

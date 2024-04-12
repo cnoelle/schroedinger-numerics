@@ -68,7 +68,7 @@ function _writeSettingsQm(system::AbstractQmSystem, file::IO;
         parameters::Union{Dict{String, Any}, Nothing}=nothing)
     indent::String = "    "
     write(file, "{\n")
-    write(file, indent, "\"type\": \"quantum\",\n")
+    write(file, indent, "\"type\": \"qm\",\n")
     write(file, indent, "\"hbar\": $(hbar(system)),\n")
     write(file, indent, "\"deltaT\": $(deltaT(system)),\n")
     write(file, indent, "\"scheme\": $(_schemeToJson(scheme(system)))")
