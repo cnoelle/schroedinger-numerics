@@ -253,7 +253,7 @@ export class WaveFunctionPlot extends HTMLElement implements QmWidget {
     initialize(settings: Array<SimulationParameters>): void {
         this.#qmResultsAndFieldPresent = undefined;
         const qmResults: Array<SimulationParameters> = settings.filter(s => !!(s as QuantumSettings).valueRange);
-        this.#currentSettings = qmResults as any;
+        this.#currentSettings = /*qmResults as any*/ settings as any;
         const ids: Array<string> = qmResults.map(r => r.id);
         if (ids.length === 0) { 
             this.clear();
@@ -274,6 +274,12 @@ export class WaveFunctionPlot extends HTMLElement implements QmWidget {
         this.#yRange = [min, max];
         const isAbsolute = this.#absoluteValues;
 
+        
+    }
+
+    private _initializeInternal(state: Array<QuantumSystem|QuantumSystemResidual>): void {
+        const qmResults = this.#currentSettings;
+        const ids: Array<string> = qmResults.map(r => r.id);
         this._initChart();
         const multiIds: boolean = ids.length > 1;
         // remove old series
@@ -286,6 +292,9 @@ export class WaveFunctionPlot extends HTMLElement implements QmWidget {
         const psiLabel: string = this.#waveFunctionType === "phi" ? "Φ" : "ψ";
         for (const id of ids) {
             idx++;
+            const isApplicable = this.#qmResultsAndFieldPresent[idx];
+            if (!isApplicable)
+                continue;
             /*const colors: [string, string, string] = [ColorPalette.getColor(idx, 0), ColorPalette.getColor(idx, 1), ColorPalette.getColor(idx, 2)]*/
             const color = qmResults[idx].color.toString();
             const psiSquared: Series = {
@@ -375,6 +384,7 @@ export class WaveFunctionPlot extends HTMLElement implements QmWidget {
                 // @ts-ignore
                 this.#qmResultsAndFieldPresent = state.map(s => this.#waveFunctionType === "phi" ? !!s.phi : !!s.psi);    
             }
+            this._initializeInternal(state);
         }
         /**
          * Filter out classical results and results with missing fields for the present config

@@ -1,10 +1,9 @@
 import { ColorRgba } from "./Color.js";
 import { JsUtils } from "./JsUtils.js";
-import { QuantumSettings, SimulationParameters, SimulationResult, SimulationResultClassical, SimulationResultQm, SimulationSettings, simulationSettings } from "./types.js";
+import { Potential, QuantumSettings, SimulationParameters, SimulationResult, SimulationResultClassical, SimulationResultQm } from "./types.js";
 
 /**
  * Dataset displayed in menu
- * TODO dispatch events: color changed, dataset deleted(DONE); and handle them in controller
  */
 export class DatasetsGrid extends HTMLElement {
 
@@ -34,8 +33,6 @@ export class DatasetsGrid extends HTMLElement {
         return DatasetsGrid._tag;
     }
 
-    //readonly #datasets: Array<SimulationResult> = [];
-
     constructor() {
         super();
         const style: HTMLStyleElement = document.createElement("style");
@@ -44,21 +41,6 @@ export class DatasetsGrid extends HTMLElement {
         const shadow: ShadowRoot = this.attachShadow({mode: "open"});
         shadow.appendChild(style);
     }
-
-    /*
-    addSimDataset(result: SimulationResult) {
-        this.#datasets.push(result);
-        this.addResultDataset(result);
-    }
-
-    removeSimDataset(result: SimulationResult) {
-        const idx = this.#datasets.indexOf(result);
-        if (idx > 1) {
-            this.#datasets.splice(idx, 1);
-            this.removeResultDataset(result.id);
-        }
-    }
-    */
 
     addResultDataset(result: SimulationResult, settings: SimulationParameters) {
         const isQuantum: boolean = settings.type === "qm";
@@ -83,8 +65,7 @@ export class DatasetsGrid extends HTMLElement {
         
         const container: HTMLElement = JsUtils.createElement("div", {parent: frag, dataset: new Map([["id", result.id]]), classes: ["dataset-container"]});
         const list = JsUtils.createElement("ul", {parent: container});
-        // TODO
-        //JsUtils.createElement("li", {text: "Potential: " + TypesUtils.printPotential(settings), parent: list});
+        JsUtils.createElement("li", {text: "Potential: " + DatasetsGrid._printPotential(settings), parent: list});
         JsUtils.createElement("li", {text: "Type: " + (settings.type ? settings.type : isQuantum ? "qm" : "classical"), parent: list});
         //@ts-ignore
         JsUtils.createElement("li", {text: "Scheme: " + settings.scheme.id, parent: list});
@@ -108,5 +89,79 @@ export class DatasetsGrid extends HTMLElement {
         this.dispatchEvent(new CustomEvent<string>("deleted", {detail: id}));
         this.shadowRoot.querySelectorAll("[data-id='"+ id + "']").forEach(el => el.remove());
     } 
+
+/*
+     * TODO we could use MathML here for nicer presentation
+     * <math>
+        <mfrac>
+          <mn>1</mn>
+          <msqrt>
+            <mn>2</mn>
+          </msqrt>
+        </mfrac>
+      </math>
+     */
+    private static _printPotential(V: Potential&{V_label?: string}): string {
+        if (!!V.V_coefficients) {  // polynomial
+            let result = "V(x) = ";
+            let idx = 0;
+            let contentPrinted: boolean = false;
+            for (let c of V.V_coefficients) {
+                if (c != 0) {
+                    let hasPrefix = false;
+                    if (contentPrinted && c > 0)
+                        result += "+";
+                    if (idx >= 2) {
+                        const denominator = DatasetsGrid._factorialize(idx);
+                        if (denominator === c) {
+                            //
+                        } else if (denominator % c === 0) {
+                            result += "1/" + (denominator/c);
+                            hasPrefix = true;
+                        } else {
+                            result += c + "/" + denominator;
+                            hasPrefix = true;
+                        }
+                    } else if (c != 1) {
+                        result += c
+                        hasPrefix = true;
+                    }
+                    contentPrinted = true;
+                    if (idx === 0)
+                        continue;
+                    if (hasPrefix)
+                        result += "*"
+                    result += "x";
+                    if (idx >= 2)
+                        result += "^" + idx;
+                }
+                idx++;
+            }
+            return result;
+        }
+        if (V.V_label)
+            return V.V_label;
+        if (!!V.points && !!V.V) {  // sampled values
+            const values: Array<number> = V.V;
+            const points: Array<number> = V.points;
+            const l: number = values.length;
+            if (l < 10)
+                return "{" + values.map((v, idx) => points[idx] + " => " + v).join(", ") + "}"
+            const delta = Math.floor(l / 10);
+            const indices = [...Array(9).keys()].map(idx => idx * delta);
+            indices.push(l-1);
+            return "{" + indices.map(idx => points[idx] + " => " + values[idx]).join(", ") + "}"
+        }
+    }
+
+    private static _factorialize(num: number): number {
+        if (num === 0)
+            return 1;
+        let result = num;
+        for (let lower = num - 1; lower >= 1; lower--) {
+            result = result * lower;
+        }
+        return result;
+    }
 
 }
