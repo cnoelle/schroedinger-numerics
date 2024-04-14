@@ -18,12 +18,12 @@
     "dist",
     "*.d.ts"
   ],
-  "types": "index.d.ts",
+  "types": "./dist/types.d.ts",
   "scripts": {
     "start": "webpack serve --mode development --hot --progress",
     "build": "del-cli bundle && webpack build --mode production",
     "compile": "del-cli dist && tsc",
-    "prepack": "npm run build"
+    "prepack": "npm run compile"
   },
   "keywords": [],
   "author": "",

@@ -107,7 +107,7 @@ class FileImport {
     /**
      * returns [array of x-values/points, array of [real, imag] values]
      */
-    public static _parseWaveFunctionFile(stream: ReadableStream, fileName: string, progressReporter: AggregatingReporter, 
+    public static _parseWaveFunctionFile(stream: ReadableStream, fileName: string, progressReporter?: AggregatingReporter, 
             options?: {headerPrefix?: string}): Promise<[Array<number>, Array<Array<[number, number]>>]|undefined> {
         if (!stream)
             return Promise.resolve(undefined);
@@ -120,9 +120,9 @@ class FileImport {
             return FileImport._parseWaveFunctionFileCsv(stream, progressReporter, options);
     }
 
-    private static _parseWaveFunctionFileCsv(stream: ReadableStream, progressReporter: AggregatingReporter, options?: {headerPrefix?: string}): Promise<[Array<number>, Array<Array<[number, number]>>]|undefined> {
+    private static _parseWaveFunctionFileCsv(stream: ReadableStream, progressReporter?: AggregatingReporter, options?: {headerPrefix?: string}): Promise<[Array<number>, Array<Array<[number, number]>>]|undefined> {
         const headerPrefix: string = (options?.headerPrefix || "Psi") + "(";
-        const reporter: ProgressSink = progressReporter.add();
+        const reporter: ProgressSink = progressReporter?.add();
         return new Promise((resolve, reject) => {
             const reader = new FileReader();
             reader.onload = (event: ProgressEvent<FileReader>) => {
@@ -209,17 +209,19 @@ class FileImport {
                     }
                     psi.push(values);
                 }
-                reporter.isDone();
+                reporter?.isDone();
                 resolve([xs, psi]);
             };
             reader.onerror = (event: ProgressEvent<FileReader>) => reject(event.target?.error || event);
-            reader.onprogress = (event: ProgressEvent<FileReader>) => {
-                if (event.lengthComputable) 
-                    reporter.progress(event.loaded, event.total);
-            };
+            if (reporter) {
+                reader.onprogress = (event: ProgressEvent<FileReader>) => {
+                    if (event.lengthComputable) 
+                        reporter.progress(event.loaded, event.total);
+                };
+            }
             new Response(stream).blob().then(blob => {
                 reader.readAsText(blob, "UTF-8");
-                reporter.started();
+                reporter?.started();
             });
         
         });
@@ -235,7 +237,7 @@ class FileImport {
     private static _parseWaveFunctionFileBinary(stream: ReadableStream, progressReporter: AggregatingReporter, 
             options?: {headerPrefix?: string}): Promise<[Array<number>, Array<Array<[number, number]>>]|undefined> {
         const headerPrefix: string = (options?.headerPrefix || "Psi") + "(";
-        const reporter: ProgressSink = progressReporter.add();
+        const reporter: ProgressSink = progressReporter?.add();
         return new Promise((resolve, reject) => {
             const reader = new FileReader();
             reader.onload = (event: ProgressEvent<FileReader>) => {
@@ -280,17 +282,19 @@ class FileImport {
                     }
                     values.push(points);
                 }
-                reporter.isDone();
+                reporter?.isDone();
                 resolve([xs, values]);
             };
             reader.onerror = (event: ProgressEvent<FileReader>) => reject(event.target?.error || event);
-            reader.onprogress = (event: ProgressEvent<FileReader>) => {
-                if (event.lengthComputable) 
-                    reporter.progress(event.loaded, event.total);
-            };
+            if (reporter) {
+                reader.onprogress = (event: ProgressEvent<FileReader>) => {
+                    if (event.lengthComputable) 
+                        reporter.progress(event.loaded, event.total);
+                };
+            }
             new Response(stream).blob().then(blob => {
                 reader.readAsArrayBuffer(blob);
-                reporter.started();
+                reporter?.started();
             });
         });
     }
@@ -299,7 +303,7 @@ class FileImport {
             result: string,
             resolve: (result: Array<ExpectationValues>) => void, 
             reject: (error: any) => void,
-            progressReporter: ProgressSink,
+            progressReporter?: ProgressSink,
             options?: {requireSquareValues?: boolean}) {
         try {
             const header: [Array<string>, number]|null = FileImport._nextRow(result, 0, 2);
@@ -334,7 +338,7 @@ class FileImport {
                 exp.push(e);
             }
             resolve(exp);
-            progressReporter.isDone();
+            progressReporter?.isDone();
         } catch (e) {
             reject(e);
         }
@@ -398,7 +402,7 @@ class FileImport {
         return [Math.min(...V), Math.max(...V)];
     }
 
-    static async parseQmResults(id: string, reporter: AggregatingReporter,
+    static async parseQmResults(id: string, reporter: AggregatingReporter|undefined,
             settingsPromise: Promise<Omit<QuantumSettings, "potentialValueRange">>,
             observablesPromise: Promise<Array<ExpectationValues>>,
             psiPromise: Promise<[Array<number>, Array<Array<[number, number]>>]>,
@@ -444,7 +448,7 @@ class FileImport {
                     || phi.length !== waveFct.length) {
                 const msg = "Incompatible lengths between wave functions and/or trajectory (psi: " 
                         + waveFct.length + ", phi: " + phi.length + ", c: " + classicalResults.timesteps.length + ")" ;
-                reporter.error(msg);
+                reporter?.error(msg);
                 throw new Error(msg);
             }
             const obsQm: Array<ExpectationValues> = result[6];
@@ -968,7 +972,7 @@ export class StaticResourcesImport extends HTMLElement {
         const reporter: AggregatingReporter = new AggregatingReporter(this.#progressReporter);
         this.#uploadRunning = true;
         try {
-            const results = await this._loadInternal(selected, reporter);
+            const results = await StaticResourcesImport.loadRemote(selected, reporter);
             this.dispatchEvent(new CustomEvent<SimulationResult>("upload", {detail: results}));
         } catch(e) {
             console.error("Failed to upload results", e);  // TODO show to user
@@ -1024,26 +1028,27 @@ export class StaticResourcesImport extends HTMLElement {
             });
     }
 
-    private async _loadInternal(dataset: RemoteDataset, progressReporter: AggregatingReporter): Promise<SimulationResult> {
+    static async loadRemote(dataset: RemoteDataset, progressReporter?: AggregatingReporter): Promise<SimulationResult> {
         const url: string = dataset.baseUrl;
         const settingsUrl = StaticResourcesImport._concat(url, dataset.settings);
-        const settingsReporter = progressReporter.add();
-        settingsReporter.started();
+        const settingsReporter = progressReporter?.add();
+        settingsReporter?.started();
         const settingsPromise: Promise<SimulationSettings> 
             = StaticResourcesImport._getTextFile(settingsUrl, "json");
-        settingsPromise.then(() => settingsReporter.isDone());
+        if (settingsReporter)
+            settingsPromise.then(() => settingsReporter.isDone());
         const parseObservables = (file: string|undefined) => {
             if (!file)
                 return Promise.resolve(undefined);
             const obsUrl = StaticResourcesImport._concat(url, file);
-            const reporterObs = progressReporter.add();
+            const reporterObs = progressReporter?.add();
             const obsPromise = new Promise((resolve, reject) => {
                 const content: Promise<string> = StaticResourcesImport._getTextFile(obsUrl, "csv");
                 content
                     .then(content0 => FileImport.parseObservablesFileInternal(content0, resolve, reject, reporterObs))
                     .catch(e => reject(e));
             });
-            progressReporter.started();
+            progressReporter?.started();
             return obsPromise;
         };
         const trajectoryPromise = parseObservables(dataset.trajectory);
