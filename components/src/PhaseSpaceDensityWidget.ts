@@ -67,7 +67,7 @@ export class PhaseSpaceDensityWidget extends HTMLElement implements QmWidget {
         this.#canvas.width = initialWidth;
         this.#canvas.height = initialHeight;
         this.#offscreen = new OffscreenCanvas(initialWidth, initialHeight); 
-        style.textContent = ":host { position: relative; display: flex; flex-direction: column; "
+        style.textContent = ":host>div { position: relative; display: flex; flex-direction: column; "
                 + "justify-content: end; align-items: center;} "
                 + ".hidden { display: none; }";
         element.classList.add("hidden");

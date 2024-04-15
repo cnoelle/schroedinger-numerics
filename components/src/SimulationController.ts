@@ -18,37 +18,11 @@ export class SimulationController implements SimulationStateListener {
     #simulationState: SimulationState = SimulationState.UNSET;
 
     readonly #listener = (event: CustomEvent<SimulationResult>) => {
-        const result: SimulationResult = event.detail;
-        const idx = this.#currentResults.findIndex(r2 => r2.id === result.id);
-        if (idx >= 0) {
-            console.error("Dataset", result.id, "already exists");
-            return;
-        }
-        // TODO color etc
-        const params0: SimulationSettings = simulationSettings(result);
-        let clIdx: number = this.#currentResults.length % 3;
-        if (clIdx === 1)
-            clIdx = 2;
-        else if (clIdx === 2)
-            clIdx = 1;
-        const color: [number,number,number,number] = [0,0,0,1];
-        color[clIdx] = 255;
-        const params: SimulationParameters = {...params0 as any, id: result.id, color: new ColorRgba(color) };
-        const newResults = [...this.#currentResults, result];
-        const newSettings = [...this.#currentSettings, params];
-        this.#currentResults = newResults;
-        this.#currentSettings = newSettings;
-        this.initWidgets();
-        this._datasetGrid?.addResultDataset(result, params);
+        this.addSimulation(event.detail);
     }
 
     readonly #deletionListener = (event: CustomEvent<string>) => {
-        const idx = this.#currentResults.findIndex(result => result.id === event.detail);
-        if (idx < 0)
-            return;
-        this.#currentResults.splice(idx, 1);
-        this.#currentSettings.splice(idx, 1);
-        this.initWidgets();
+        this.removeSimulation(event.detail);
     };
 
     readonly #colorListener = (event: CustomEvent<{id: string; color: ColorRgba}>) => {
@@ -183,6 +157,39 @@ export class SimulationController implements SimulationStateListener {
     close() {
         this._fileUploads.forEach(upload => upload.removeEventListener("upload", this.#listener));
         SimulationControls.EVENTS.forEach(event => this._ctrl.removeEventListener(event, this.#controlsListener));
+    }
+
+    addSimulation(result: SimulationResult): void {
+        const idx = this.#currentResults.findIndex(r2 => r2.id === result.id);
+        if (idx >= 0) {
+            console.error("Dataset", result.id, "already exists");
+            return;
+        }
+        // TODO color etc
+        const params0: SimulationSettings = simulationSettings(result);
+        let clIdx: number = this.#currentResults.length % 3;
+        if (clIdx === 1)
+            clIdx = 2;
+        else if (clIdx === 2)
+            clIdx = 1;
+        const color: [number,number,number,number] = [0,0,0,1];
+        color[clIdx] = 255;
+        const params: SimulationParameters = {...params0 as any, id: result.id, color: new ColorRgba(color) };
+        const newResults = [...this.#currentResults, result];
+        const newSettings = [...this.#currentSettings, params];
+        this.#currentResults = newResults;
+        this.#currentSettings = newSettings;
+        this.initWidgets();
+        this._datasetGrid?.addResultDataset(result, params);
+    }
+
+    removeSimulation(resultId: string) {
+        const idx = this.#currentResults.findIndex(result => result.id === resultId);
+        if (idx < 0)
+            return;
+        this.#currentResults.splice(idx, 1);
+        this.#currentSettings.splice(idx, 1);
+        this.initWidgets();
     }
 
 

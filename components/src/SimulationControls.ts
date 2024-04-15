@@ -28,7 +28,7 @@ export class SimulationControls extends HTMLElement implements SimulationStateLi
     private static _tag: string|undefined;
 
     static get observedAttributes() {
-        return ["duration"]; 
+        return ["duration", "duration-hidden"]; 
     }
 
     /**
@@ -95,7 +95,8 @@ export class SimulationControls extends HTMLElement implements SimulationStateLi
             " .left-margin { margin-left: 1em; }" + 
             " .control-icon { cursor: pointer; } .control-icon-disabled { opacity: 0.5; } " +
             " .control-icon-disabled:hover { cursor: auto; }" +            
-            " .sim-duration-control { max-width: 8em; }";
+            " .sim-duration-control { max-width: 8em; } " +
+            " .hidden {display: none;} ";
         this.shadowRoot.appendChild(style); // TODO do we first need to attach a new shadow root?
         // const shadow: ShadowRoot = this.attachShadow({mode: "open"});    
         this.shadowRoot.appendChild(flex);  
@@ -190,6 +191,15 @@ export class SimulationControls extends HTMLElement implements SimulationStateLi
         return this.#simDuration;
     }
 
+    set durationHidden(hidden: boolean) {
+        this.setAttribute("duration-hidden", hidden ? "true" : null);
+    }
+
+    get durationVisible(): boolean {
+        const hidden = this.getAttribute("duration-hidden");
+        return !!hidden && hidden.toLowerCase() !== "false";
+    }
+
     private _fire(event: SimulationStateChange, detail?: SimulationStateReset) {
         if (detail)
             this.dispatchEvent(new CustomEvent<SimulationStateReset>(event, {detail: detail}));
@@ -253,6 +263,13 @@ export class SimulationControls extends HTMLElement implements SimulationStateLi
         switch (attr) {
         case "duration":
             this.duration = parseFloat(newValue);
+            break;
+        case "duration-hidden":
+            const isHidden: boolean = !!newValue && newValue.toLowerCase() !== "false";
+            if (isHidden)
+                this.#duration.parentElement.classList.add("hidden");
+            else
+                this.#duration.parentElement.classList.remove("hidden");
             break;
         default:
             
